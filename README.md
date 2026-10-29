@@ -17,5 +17,16 @@ rather than copy wholesale.
 
 ## Viewing
 
-Serve the folder (e.g. `python3 -m http.server`) and open `Main.dc.html`;
-some browsers block the scripts over file://.
+`make dev` serves the folder and prints the URL (some browsers block the
+scripts over file://). `make test` checks the address-bar helpers.
+
+The address bar carries the UI state, so links can open a given view:
+`?menu=display|room|topic|message`, `?history=closed`,
+`?theme=campfire|daylight|ink`. Opening a menu is a history entry (Back
+closes it); the theme and drawer replace the current entry.
+
+## Publishing
+
+`.github/workflows/pages.yml` publishes the folder to GitHub Pages on push
+to `main`/`master`, with `Main.dc.html` as the index. One-time setup:
+Settings → Pages → Source: "GitHub Actions".

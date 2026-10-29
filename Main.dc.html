@@ -1081,10 +1081,42 @@ class Component extends DCLogic {
       roomRecord: true, roomUntilNext: false,
       filterText: '', filterPids: [],
       drawerOpen: true, menu: null,
-      themeScope: 'everyone', roomTheme: { preset: 'campfire', accent: '#F4A259', shape: 'round', background: 'waves', ...Component.DEFAULT_BG }, myThemes: {}, fxError: '',
+      themeScope: 'everyone', roomTheme: { preset: Component.DEFAULT_PRESET, accent: '#F4A259', shape: 'round', background: 'waves', ...Component.DEFAULT_BG }, myThemes: {}, fxError: '',
       freq: { on: false, count: 2, seconds: 10 }, freqError: '',
       dominator: false, simulate: false, dragging: null,
     };
+  }
+
+  // ───────────────────────── address bar (pure) ─────────────────────────
+
+  /**
+   * The address bar as state: which menu is open, whether the history drawer is shown, and the room theme.
+   *   ?menu=display|room|topic|message   ?history=closed   ?theme=campfire|daylight|ink
+   * Other params are left as they are. Unknown values are ignored; a missing ?theme keeps the current one.
+   */
+  static MENUS = ['display', 'room', 'topic', 'message'];
+  static DEFAULT_PRESET = 'campfire';
+
+  static withQuery(s, search) {
+    const q = new URLSearchParams(search);
+    const menu = q.get('menu');
+    const theme = q.get('theme');
+    return {
+      ...s,
+      menu: Component.MENUS.includes(menu) ? menu : null,
+      drawerOpen: q.get('history') !== 'closed',
+      ...(theme !== null && Object.hasOwn(Component.PRESETS, theme) ? { roomTheme: { ...s.roomTheme, preset: theme } } : {}),
+    };
+  }
+
+  static toQuery(s, search) {
+    const q = new URLSearchParams(search);
+    for (const k of ['menu', 'history', 'theme']) q.delete(k);
+    if (s.menu !== null) q.set('menu', s.menu);
+    if (!s.drawerOpen) q.set('history', 'closed');
+    if (s.roomTheme.preset !== Component.DEFAULT_PRESET) q.set('theme', s.roomTheme.preset);
+    const out = q.toString();
+    return out === '' ? '' : '?' + out;
   }
 
   // ───────────────────────── animated background (pure parts) ─────────────────────────
@@ -1337,9 +1369,20 @@ class Component extends DCLogic {
 
   // ───────────────────────── IO edge: lifecycle ─────────────────────────
 
-  state = Component.initialState(Date.now(), this.props.seed ?? 7);
+  state = Component.withQuery(Component.initialState(Date.now(), this.props.seed ?? 7), location.search);
+
+  onPopState = () => this.up((s) => Component.withQuery(s, location.search));
+
+  /** Keep the address bar in step: opening or switching a menu is a history entry (so Back closes it); anything else replaces it. */
+  syncUrl(prevState) {
+    const url = location.pathname + Component.toQuery(this.state, location.search) + location.hash;
+    if (url === location.pathname + location.search + location.hash) return;
+    if (prevState.menu !== this.state.menu && this.state.menu !== null) history.pushState(null, '', url);
+    else history.replaceState(null, '', url);
+  }
 
   componentDidMount() {
+    window.addEventListener('popstate', this.onPopState);
     this.timer = setInterval(() => {
       const now = Date.now();
       this.setState((s) => Component.step(s, now));
@@ -1348,6 +1391,7 @@ class Component extends DCLogic {
   }
 
   componentWillUnmount() {
+    window.removeEventListener('popstate', this.onPopState);
     clearInterval(this.timer);
     clearTimeout(this.holdTimer);
     cancelAnimationFrame(this.raf);
@@ -1426,6 +1470,7 @@ class Component extends DCLogic {
 
   /** Focus the new-topic input as soon as the Change topic modal opens. */
   componentDidUpdate(prevProps, prevState) {
+    this.syncUrl(prevState);
     if (prevState.topicDraft !== null || this.state.topicDraft === null) return;
     requestAnimationFrame(() => {
       const input = document.getElementById('cc-topic-name');
