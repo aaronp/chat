@@ -1,0 +1,1911 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Circle chat</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled,input:disabled,select:disabled{cursor:not-allowed;opacity:.45}
+:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+textarea:focus-visible,input[type=text]:focus-visible,input[type=search]:focus-visible{outline-offset:0}
+a{color:#F4A259}a:hover{color:#FFC48F}
+@keyframes cc-pulse{0%{opacity:1}50%{opacity:.3}100%{opacity:1}}
+@keyframes cc-pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.cc-pop{animation:cc-pop .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes cc-hold{from{width:0}to{width:100%}}
+.cc-hold{animation:cc-hold .45s linear forwards}
+@keyframes cc-enter{from{opacity:0;translate:var(--fx,0px) var(--fy,0px);scale:var(--fs,1)}to{opacity:1;translate:0 0;scale:1}}
+.cc-pulse{animation:cc-pulse 1.6s ease-in-out infinite}
+.cc-scroll::-webkit-scrollbar{width:8px}
+.cc-scroll::-webkit-scrollbar-thumb{background:rgba(128,128,128,.35);border-radius:8px}
+</style>
+</helmet>
+
+<div style="height: 100vh; min-height: 680px; display: flex; flex-direction: column; position: relative; overflow: hidden; background: {{t.bg}}; color: {{t.ink}}; font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif; transition: background .4s, color .4s">
+
+  <!-- ───────── Header ───────── -->
+  <header style="flex: 0 0 auto; min-height: 64px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; padding: 10px 20px; background: {{t.surface}}; border-bottom: 1px solid {{t.line}}">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11" fill="none" stroke="currentColor" stroke-width="2"></circle><circle cx="14" cy="3" r="3" fill="{{t.accent}}"></circle><circle cx="23.5" cy="19.5" r="3" fill="currentColor"></circle><circle cx="4.5" cy="19.5" r="3" fill="currentColor"></circle></svg>
+      <span style="font-size: 20px; font-weight: 750; letter-spacing: -0.02em">Circle</span>
+    </div>
+
+    <div style="flex: 1 1 auto"></div>
+
+    <nav aria-label="Room controls" style="display: flex; align-items: center; gap: 8px">
+      <sc-if value="{{anyMoved}}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{forcePush}}" title="Put everyone back in evenly spaced seats" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1.5px solid {{t.accent}}; background: transparent">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.5" fill="currentColor"></circle><path d="M12 1v3M12 20v3M1 12h3M20 12h3"></path></svg>
+          <span>Recenter</span>
+        </button>
+      </sc-if>
+      <button aria-expanded="{{menuIs.display}}" onClick="{{openDisplay}}" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid {{t.line}}; background: {{btnBg.display}}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"></path></svg>
+        <span>Display</span>
+      </button>
+      <button aria-expanded="{{menuIs.room}}" onClick="{{openRoom}}" style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid {{t.line}}; background: {{btnBg.room}}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
+        <span>Room settings</span>
+      </button>
+    </nav>
+  </header>
+
+  <!-- ───────── Body ───────── -->
+  <div style="flex: 1 1 auto; min-height: 0; display: flex">
+
+    <!-- ───────── Left column: participants ───────── -->
+    <aside aria-label="Participants" style="flex: 0 0 288px; min-height: 0; display: flex; flex-direction: column; background: {{t.surface}}; border-right: 1px solid {{t.line}}">
+
+     <section aria-labelledby="cc-ppl-title" style="flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden">
+      <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 16px">
+        <h2 id="cc-ppl-title" style="margin: 0; flex: 1 1 auto; font-size: 16px; font-weight: 750; letter-spacing: -0.01em">Participants</h2>
+        <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: {{t.muted}}">{{participantCount}}</span>
+      </div>
+
+       <div id="cc-people" style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column">
+      <div style="flex: 0 0 auto; padding: 0 16px 8px; display: flex; flex-direction: column; gap: 8px">
+        <div style="font-size: 12px; color: {{t.muted}}">Select someone to act as them.</div>
+
+        <!-- add participant -->
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span aria-hidden="true" title="Their colour" style="flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; background: {{nextColor}}"></span>
+            <input id="cc-new-name" type="text" aria-label="New participant name" placeholder="Add participant…" maxlength="24" autocomplete="off" value="{{newName}}" onChange="{{onNewName}}" onKeyDown="{{onNewNameKey}}" style="flex: 1 1 auto; min-width: 0; height: 44px; padding: 0 12px; border-radius: 10px; border: 1.5px solid {{t.line}}; background: {{t.bg}}; font-size: 15px">
+            <button type="button" onClick="{{onAddClick}}" style="flex: 0 0 auto; height: 44px; padding: 0 14px; border-radius: 10px; border: none; background: {{t.accent}}; color: {{t.accentInk}}; font-weight: 700">Add</button>
+          </div>
+          <sc-if value="{{hasNewNameError}}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="font-size: 12px; font-weight: 650; color: {{t.accent}}">{{newNameError}}</div>
+          </sc-if>
+        </div>
+
+        <!-- filter -->
+        <div style="position: relative; display: flex; align-items: center">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="position: absolute; left: 11px; color: {{t.muted}}"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+          <input type="search" aria-label="Filter participants" placeholder="Filter by name…" value="{{participantFilter}}" onChange="{{onParticipantFilter}}" style="width: 100%; height: 38px; padding: 0 12px 0 32px; border-radius: 10px; border: 1px solid {{t.line}}; background: transparent; font-size: 14px">
+        </div>
+      </div>
+
+      <div class="cc-scroll" role="list" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 2px 10px 12px">
+        <sc-if value="{{rosterEmpty}}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 12px 8px; font-size: 13px; color: {{t.muted}}">{{noMatchText}}</div>
+        </sc-if>
+        <sc-for list="{{roster}}" as="p" hint-placeholder-count="4">
+          <div role="listitem" style="display: flex; align-items: center; gap: 2px; padding-right: 4px; border-radius: 12px; background: {{p.bg}}; border: 1.5px solid {{p.border}}; transition: background .2s, border-color .2s">
+            <button onClick="{{p.select}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" style="flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 8px; border: none; background: transparent; text-align: left">
+              <span style="flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: {{p.color}}; color: {{p.ink}}; font-size: 14px; font-weight: 750; box-shadow: 0 0 0 2px {{t.surface}}, 0 0 0 4px {{p.ring}}">{{p.initials}}</span>
+              <span style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+                <span style="display: flex; align-items: center; gap: 6px; min-width: 0">
+                  <span style="min-width: 0; font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{p.name}}</span>
+                  <sc-if value="{{p.muted}}" hint-placeholder-val="{{ false }}">
+                    <span title="Off the record" style="flex: 0 0 auto; display: flex; align-items: center; gap: 3px; height: 18px; padding: 0 6px; border-radius: 999px; border: 1px solid {{t.line}}; color: {{t.muted}}; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px; font-weight: 600; letter-spacing: .08em">
+                      <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V5a3 3 0 0 0-5.9-.7M9 9v3a3 3 0 0 0 5.1 2.1"></path><path d="M19 11a7 7 0 0 1-1.2 3.9M5 11a7 7 0 0 0 11 5.7M12 18v3"></path><path d="M3 3l18 18"></path></svg>
+                      MUTED
+                    </span>
+                  </sc-if>
+                </span>
+                <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: .08em; color: {{p.metaColor}}; white-space: nowrap">{{p.meta}}</span>
+              </span>
+            </button>
+            <button onClick="{{p.remove}}" disabled="{{onlyOne}}" aria-label="{{p.removeAria}}" title="Remove from the circle" style="flex: 0 0 auto; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: none; background: transparent; color: {{t.muted}}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            </button>
+          </div>
+        </sc-for>
+      </div>
+       </div>
+     </section>
+    </aside>
+
+    <main style="flex: 1 1 auto; min-width: 0; display: flex; position: relative">
+
+      <!-- ───────── Stage ───────── -->
+      <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; position: relative">
+
+        <!-- stage toolbar -->
+        <div style="position: absolute; top: 16px; left: 20px; right: 20px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; z-index: 5">
+          <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: .06em; color: {{t.muted}}">{{circleCount}}</span>
+        </div>
+
+        <!-- the circle -->
+        <div style="flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 76px 56px 56px">
+          <div data-ring="1" style="position: relative; width: {{ringSize}}; aspect-ratio: 1; border-radius: 50%; background: {{topicUi.core}}; border: 1.5px solid {{topicUi.ringBorder}}; transition: background .4s, border-color .4s, width .3s">
+
+            <!-- animated background (WebGL), drawn under the topic and bubbles; reacts to new messages -->
+            <canvas id="cc-bg" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; pointer-events: none"></canvas>
+
+            <!-- center topic -->
+            <button onClick="{{openTopicModal}}" aria-label="{{topicAria}}" title="Change topic" style="position: absolute; left: 50%; top: 50%; width: 40%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; border: none; background: transparent; color: {{topicUi.ink}}; display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; font-size: {{topicFontSize}}px; font-weight: 750; line-height: 1.08; letter-spacing: -0.02em; overflow-wrap: anywhere; text-wrap: balance; transition: background .4s, color .4s, font-size .3s">{{topicName}}</button>
+
+            <!-- bubbles: a screen-space layer inside the ring, fanned around each seat toward the centre -->
+            <sc-for list="{{bubbleLayer}}" as="b" hint-placeholder-count="0">
+              <sc-if value="{{b.present}}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; left: {{b.left}}%; top: {{b.top}}%; width: max-content; max-width: 160px; transform: translate(-50%, -50%); transition: {{b.tr}}; opacity: {{b.opacity}}; --fx: {{b.enterX}}px; --fy: {{b.enterY}}px; --fs: {{b.enterScale}}; animation: cc-enter .5s cubic-bezier(.2,.8,.2,1); pointer-events: none; z-index: 2">
+                        <div style="position: relative; background: {{b.color}}; color: {{b.ink}}; border-radius: {{bubbleRadius}}; padding: 7px 12px; font-size: {{b.size}}px; font-weight: {{b.weight}}; font-style: {{b.italic}}; text-transform: {{b.textCase}}; letter-spacing: {{b.tracking}}; line-height: 1.18; text-align: center; overflow-wrap: anywhere; outline: {{b.outline}}; outline-offset: 2px; box-shadow: {{t.shadow}}"><span aria-hidden="true" style="position: absolute; left: {{b.tailLeft}}; top: {{b.tailTop}}; width: 0; height: 0"><span style="position: absolute; left: 0; top: 0; width: 13px; height: 14px; background: {{b.color}}; clip-path: polygon(0 0, 100% 50%, 0 100%); transform-origin: 0 50%; transform: translate(-4px, -50%) rotate({{b.tailDeg}}deg); transition: transform .3s"></span></span>{{b.text}}<sc-if value="{{b.showProgress}}" hint-placeholder-val="{{ true }}"><svg aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none"><rect x="0" y="0" rx="{{ringRadius}}" pathLength="100" fill="none" stroke="{{t.line}}" stroke-width="2" style="width: 100%; height: 100%"></rect><rect x="0" y="0" rx="{{ringRadius}}" pathLength="100" fill="none" stroke="{{t.ink}}" stroke-opacity="0.85" stroke-width="2" stroke-linecap="round" stroke-dasharray="100 100" stroke-dashoffset="{{b.dashOffset}}" style="width: 100%; height: 100%; transition: stroke-dashoffset .2s linear"></rect></svg></sc-if><sc-if value="{{b.offRecord}}" hint-placeholder-val="{{ false }}"><span title="Off the record" style="position: absolute; top: -9px; right: -9px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{t.surface}}; border: 1px solid {{t.line}}; color: {{t.ink}}; font-style: normal; text-transform: none"><svg role="img" aria-label="Off the record" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V5a3 3 0 0 0-5.9-.7M9 9v3a3 3 0 0 0 5.1 2.1"></path><path d="M19 11a7 7 0 0 1-1.2 3.9M5 11a7 7 0 0 0 11 5.7M12 18v3"></path><path d="M3 3l18 18"></path></svg></span></sc-if></div>
+                </div>
+              </sc-if>
+            </sc-for>
+
+            <!-- seats -->
+            <sc-for list="{{seats}}" as="s" hint-placeholder-count="4">
+              <div style="position: absolute; inset: 0; pointer-events: none; transform: rotate({{s.angle}}deg); transition: {{s.trRot}}">
+
+                <div style="position: absolute; left: 50%; top: 0; width: {{s.size}}px; height: {{s.size}}px; transform: translate(-50%, -50%) rotate({{s.neg}}deg); transition: {{s.trRot}}, width .5s, height .5s">
+                  <button onPointerDown="{{s.startDrag}}" onKeyDown="{{s.onKey}}" aria-label="{{s.aria}}" title="Drag to move along the circle · arrow keys nudge" style="pointer-events: auto; touch-action: none; width: 100%; height: 100%; border-radius: 50%; background: {{s.color}}; color: {{s.ink}}; border: 3px solid {{s.ringColor}}; box-shadow: {{s.glow}}; cursor: {{s.cursor}}; font-weight: 750; font-size: {{s.fontSize}}px; letter-spacing: -0.01em; transition: box-shadow .3s, font-size .5s, border-color .3s">{{s.initials}}</button>
+                  <div style="position: absolute; left: 50%; {{s.labelPos}}; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; white-space: nowrap; pointer-events: auto">
+                    <span style="font-size: 13px; font-weight: 650">{{s.name}}</span>
+                    <sc-if value="{{s.isActive}}" hint-placeholder-val="{{ false }}">
+                      <span style="padding: 2px 6px; border-radius: 999px; border: 1px solid {{t.accent}}; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px; font-weight: 600; letter-spacing: .1em">YOU</span>
+                    </sc-if>
+                    <sc-if value="{{s.muted}}" hint-placeholder-val="{{ false }}">
+                      <span title="Off the record" style="display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: {{t.surface}}; border: 1px solid {{t.line}}; color: {{t.ink}}">
+                        <svg role="img" aria-label="Off the record" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V5a3 3 0 0 0-5.9-.7M9 9v3a3 3 0 0 0 5.1 2.1"></path><path d="M19 11a7 7 0 0 1-1.2 3.9M5 11a7 7 0 0 0 11 5.7M12 18v3"></path><path d="M3 3l18 18"></path></svg>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{s.isDom}}" hint-placeholder-val="{{ false }}">
+                      <span style="display: flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; background: {{t.accent}}; color: {{t.accentInk}}; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; font-weight: 600; letter-spacing: .08em">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l5 4 4-7 4 7 5-4-2 12H5z"></path></svg>
+                        DOMINATOR
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{s.custom}}" hint-placeholder-val="{{ false }}">
+                      <button onClick="{{s.reset}}" aria-label="{{s.resetAria}}" title="Reset to the next evenly spaced seat" style="display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid {{t.line}}; background: {{t.surface}}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>
+                      </button>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+
+          </div>
+        </div>
+
+        <!-- ───────── Message input ───────── -->
+        <div style="flex: 0 0 auto; position: relative; z-index: {{rowZ}}; display: flex; align-items: center; gap: 10px; padding: 14px 20px 16px; background: {{t.surface}}; border-top: 1px solid {{t.line}}">
+          <input type="text" aria-label="Message" placeholder="{{placeholder}}" value="{{draft.text}}" onChange="{{onText}}" onKeyDown="{{onMessageKey}}" autocomplete="off" style="flex: 1 1 auto; min-width: 0; height: 48px; padding: 0 16px; border-radius: 12px; border: 1.5px solid {{t.line}}; background: {{t.bg}}; font-size: 16px">
+          <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .06em; color: {{t.muted}}; white-space: nowrap">{{freqUsage}}</span>
+
+          <!-- message style preview: also opens the per-message options (keyboard-friendly twin of press-and-hold) -->
+          <button type="button" onClick="{{openMessageMenu}}" aria-haspopup="dialog" aria-expanded="{{menuIs.message}}" aria-label="{{styleAria}}" title="Message options" style="flex: 0 0 auto; position: relative; min-width: 48px; height: 48px; padding: 0 10px; display: flex; align-items: center; justify-content: center; border-radius: {{bubbleRadius}}; border: none; background: {{preview.color}}; color: {{preview.ink}}; font-size: {{preview.size}}px; font-weight: {{preview.weight}}; font-style: {{preview.italic}}; text-transform: {{preview.textCase}}; transition: font-size .2s, background .2s">
+            Aa
+            <sc-if value="{{draftOffRecord}}" hint-placeholder-val="{{ false }}">
+              <span aria-hidden="true" style="position: absolute; top: -7px; right: -7px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{t.surface}}; border: 1px solid {{t.line}}; color: {{t.ink}}; font-style: normal">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V5a3 3 0 0 0-5.9-.7M9 9v3a3 3 0 0 0 5.1 2.1"></path><path d="M19 11a7 7 0 0 1-1.2 3.9M5 11a7 7 0 0 0 11 5.7M12 18v3"></path><path d="M3 3l18 18"></path></svg>
+              </span>
+            </sc-if>
+          </button>
+
+          <!-- send: click to send, press and hold (or right-click / ArrowUp) for per-message options -->
+          <button type="button" onClick="{{onSendClick}}" onPointerDown="{{onSendPointerDown}}" onPointerUp="{{onSendPointerUp}}" onPointerLeave="{{onSendPointerUp}}" onPointerCancel="{{onSendPointerUp}}" onContextMenu="{{onSendContext}}" onKeyDown="{{onSendKey}}" aria-disabled="{{sendDisabled}}" aria-haspopup="dialog" title="Click to send · hold for message options" style="flex: 0 0 auto; position: relative; overflow: hidden; display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 20px; border-radius: 12px; border: none; background: {{t.accent}}; color: {{t.accentInk}}; font-size: 15px; font-weight: 700; opacity: {{sendOpacity}}; touch-action: none; user-select: none; -webkit-user-select: none">
+            <sc-if value="{{holding}}" hint-placeholder-val="{{ false }}">
+              <span aria-hidden="true" class="cc-hold" style="position: absolute; left: 0; bottom: 0; height: 4px; background: {{t.accentInk}}; opacity: .55"></span>
+            </sc-if>
+            {{sendLabel}}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+          </button>
+
+          <!-- per-message options -->
+          <sc-if value="{{menuIs.message}}" hint-placeholder-val="{{ false }}">
+            <div role="dialog" aria-label="Message options" style="position: absolute; right: 20px; bottom: calc(100% + 8px); z-index: 30; width: 340px; max-width: calc(100% - 40px); padding: 14px; border-radius: 16px; background: {{t.surface}}; border: 1px solid {{t.line}}; box-shadow: {{t.shadow}}; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; align-items: center; gap: 10px">
+                <span style="flex: 1 1 auto; font-size: 16px; font-weight: 750">This message</span>
+                <span aria-hidden="true" style="min-width: 40px; height: 34px; padding: 0 9px; display: flex; align-items: center; justify-content: center; border-radius: {{bubbleRadius}}; background: {{preview.color}}; color: {{preview.ink}}; font-size: {{preview.railSize}}px; font-weight: {{preview.weight}}; font-style: {{preview.italic}}; text-transform: {{preview.textCase}}">Aa</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 6px">
+                <div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}"><span>EFFECT</span><span>{{volLabel}}</span></div>
+                <div role="group" aria-label="Effect" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: {{t.raised}}">
+                  <sc-for list="{{effects}}" as="e" hint-placeholder-count="5">
+                    <button type="button" onClick="{{e.pick}}" aria-pressed="{{e.on}}" aria-label="{{e.label}}" title="{{e.label}}" style="height: 40px; padding: 0; border-radius: 9px; border: none; background: {{e.bg}}; color: {{e.fg}}; font-size: {{e.size}}px; font-weight: {{e.weight}}; font-style: {{e.italic}}; text-transform: {{e.textCase}}">Aa</button>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 6px">
+                <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">COLOUR</div>
+                <div role="group" aria-label="Colour" style="display: flex; flex-wrap: wrap; gap: 6px">
+                  <sc-for list="{{msgSwatches}}" as="c" hint-placeholder-count="9">
+                    <button type="button" onClick="{{c.pick}}" aria-label="{{c.aria}}" aria-pressed="{{c.on}}" style="width: 30px; height: 30px; padding: 0; border-radius: 50%; background: {{c.hex}}; border: 3px solid {{c.ring}}"></button>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 10px">
+                <label for="cc-dur" style="flex: 0 0 76px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">DURATION</label>
+                <input id="cc-dur" type="range" min="1" max="10" step="0.5" value="{{durationSec}}" onChange="{{onDuration}}" style="flex: 1 1 auto; min-width: 0; accent-color: {{t.accent}}">
+                <span style="flex: 0 0 40px; font-size: 13px; font-weight: 650; text-align: right">{{durationLabel}}</span>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 12px">
+                <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px">
+                  <span style="font-size: 14px; font-weight: 650">Off the record</span>
+                  <span style="font-size: 12px; color: {{t.muted}}">{{offRecordHint}}</span>
+                </div>
+                <button type="button" onClick="{{toggleOffRecord}}" aria-pressed="{{draftOffRecord}}" aria-label="Off the record" disabled="{{roomOff}}" style="flex: 0 0 auto; width: 48px; height: 28px; padding: 3px; border-radius: 999px; border: none; background: {{sw.off.track}}; display: flex; justify-content: {{sw.off.justify}}; transition: background .2s">
+                  <span style="width: 22px; height: 22px; border-radius: 50%; background: {{sw.off.knob}}"></span>
+                </button>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 10px; padding-top: 12px; border-top: 1px solid {{t.line}}">
+                <label style="flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 14px; font-weight: 600">
+                  <input type="checkbox" checked="{{sticky}}" onChange="{{toggleSticky}}" style="width: 18px; height: 18px; margin: 0; accent-color: {{t.accent}}">
+                  Set as default
+                </label>
+                <sc-if value="{{draftCustom}}" hint-placeholder-val="{{ false }}">
+                  <button type="button" onClick="{{resetDraft}}" style="height: 36px; padding: 0 12px; border-radius: 9px; border: 1px solid {{t.line}}; background: transparent; font-size: 13px; font-weight: 650">Reset</button>
+                </sc-if>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </main>
+
+    <!-- ───────── History drawer ───────── -->
+    <sc-if value="{{drawerOpen}}" hint-placeholder-val="{{ true }}">
+      <aside aria-label="On-the-record history" style="flex: 0 0 340px; min-height: 0; display: flex; flex-direction: column; background: {{log.bg}}; color: {{log.ink}}; border-left: 1px solid {{t.line}}; transition: background .4s">
+        <div style="flex: 0 0 auto; padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid {{log.line}}">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <h2 style="margin: 0; font-size: 18px; font-weight: 750; letter-spacing: -0.01em; flex: 1 1 auto">History</h2>
+            <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; opacity: .8">{{log.countLabel}}</span>
+            <button onClick="{{toggleDrawer}}" aria-expanded="true" aria-label="Collapse history" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid {{log.line}}; background: transparent">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+            </button>
+          </div>
+          <button aria-pressed="{{roomRecord}}" onClick="{{toggleRoomRecord}}" title="Applies to the whole room" style="display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1.5px solid {{rec.border}}; background: {{rec.bg}}; color: {{log.ink}}; font-size: 15px; font-weight: 650; text-align: left">
+            <span class="{{rec.dotClass}}" style="flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: {{rec.dot}}; border: 2px solid {{rec.dotRing}}"></span>
+            <span style="flex: 1 1 auto">{{rec.label}}</span>
+            <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: .08em; opacity: .8">WHOLE ROOM</span>
+          </button>
+          <div role="group" aria-label="Jump to topic" class="cc-scroll" style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 76px; overflow-y: auto">
+            <sc-for list="{{topicPills}}" as="tp" hint-placeholder-count="2">
+              <button onClick="{{tp.jump}}" aria-pressed="{{tp.on}}" title="{{tp.title}}" style="display: flex; align-items: center; gap: 6px; max-width: 100%; height: 30px; padding: 0 10px 0 8px; border-radius: 999px; border: 1.5px solid {{tp.border}}; background: {{tp.bg}}; color: {{tp.fg}}; font-size: 12px; font-weight: 650">
+                <span style="flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: {{tp.color}}"></span>
+                <span style="max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{tp.name}}</span>
+              </button>
+            </sc-for>
+          </div>
+          <input type="search" aria-label="Filter comments by text" placeholder="Filter text…" value="{{filterText}}" onChange="{{onFilterText}}" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid {{log.line}}; background: {{t.surface}}; color: {{t.ink}}; font-size: 14px">
+          <div role="group" aria-label="Filter by participant" style="display: flex; flex-wrap: wrap; gap: 6px">
+            <button onClick="{{clearPidFilter}}" aria-pressed="{{noPidFilter}}" style="height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid {{log.line}}; background: {{allChipBg}}; color: {{allChipInk}}; font-size: 12px; font-weight: 650">Everyone</button>
+            <sc-for list="{{pidChips}}" as="c" hint-placeholder-count="4">
+              <button onClick="{{c.toggle}}" aria-pressed="{{c.on}}" style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 4px; border-radius: 999px; border: 1px solid {{c.border}}; background: {{c.bg}}; color: {{c.fg}}; font-size: 12px; font-weight: 650">
+                <span style="width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: {{c.color}}; color: {{c.ink}}; font-size: 10px; font-weight: 750">{{c.initials}}</span>
+                {{c.name}}
+              </button>
+            </sc-for>
+          </div>
+          <sc-if value="{{roomOff}}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 8px 10px; border-radius: 10px; border: 1px dashed {{log.line}}; font-size: 13px">Room is off the record — new comments aren't being logged.</div>
+          </sc-if>
+        </div>
+
+        <div class="cc-scroll" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 12px; padding: 12px">
+          <sc-for list="{{log.sections}}" as="g" hint-placeholder-count="1">
+            <section id="{{g.domId}}" aria-label="{{g.aria}}" style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: {{g.bg}}; color: {{g.ink}}; scroll-margin-top: 8px">
+              <div style="display: flex; align-items: center; gap: 8px; padding: 2px 4px">
+                <span style="flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: {{g.color}}"></span>
+                <span style="flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{g.name}}</span>
+                <span style="flex: 0 0 auto; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 10px; letter-spacing: .08em; opacity: .85">{{g.meta}}</span>
+              </div>
+              <sc-for list="{{g.entries}}" as="e" hint-placeholder-count="2">
+                <article style="display: flex; gap: 10px; padding: 10px 12px; border-radius: 12px; background: {{t.surface}}; color: {{t.ink}}">
+                  <span style="flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: {{e.pColor}}; color: {{e.pInk}}; font-size: 11px; font-weight: 750">{{e.initials}}</span>
+                  <div style="min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px">
+                    <div style="display: flex; align-items: baseline; gap: 8px">
+                      <span style="font-size: 13px; font-weight: 700">{{e.name}}</span>
+                      <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; color: {{t.muted}}">{{e.time}}</span>
+                      <span style="margin-left: auto; width: 10px; height: 10px; border-radius: 50%; background: {{e.color}}" title="Message color"></span>
+                    </div>
+                    <div style="font-size: {{e.size}}px; font-weight: {{e.weight}}; font-style: {{e.italic}}; text-transform: {{e.textCase}}; line-height: 1.3; overflow-wrap: anywhere">{{e.text}}</div>
+                  </div>
+                </article>
+              </sc-for>
+              <sc-if value="{{g.empty}}" hint-placeholder-val="{{ false }}">
+                <div style="padding: 2px 4px 4px; font-size: 13px; opacity: .85">{{g.emptyText}}</div>
+              </sc-if>
+            </section>
+          </sc-for>
+        </div>
+      </aside>
+    </sc-if>
+
+    <!-- ───────── History rail (collapsed) ───────── -->
+    <sc-if value="{{drawerClosed}}" hint-placeholder-val="{{ false }}">
+      <aside aria-label="History (collapsed)" style="flex: 0 0 60px; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 0; background: {{log.bg}}; color: {{log.ink}}; border-left: 1px solid {{t.line}}">
+        <button onClick="{{toggleDrawer}}" aria-expanded="false" aria-label="Open history" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 10px; border: 1px solid {{log.line}}; background: transparent">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+        </button>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
+        <span title="On-the-record comments" style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; padding: 2px 7px; border-radius: 999px; background: {{t.accent}}; color: {{t.accentInk}}">{{recordCount}}</span>
+        <sc-if value="{{roomOff}}" hint-placeholder-val="{{ false }}">
+          <span title="Room is off the record" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: {{t.surface}}; border: 1px solid {{t.line}}; color: {{t.ink}}">
+            <svg role="img" aria-label="Room is off the record" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9.3V5a3 3 0 0 0-5.9-.7M9 9v3a3 3 0 0 0 5.1 2.1"></path><path d="M19 11a7 7 0 0 1-1.2 3.9M5 11a7 7 0 0 0 11 5.7M12 18v3"></path><path d="M3 3l18 18"></path></svg>
+          </span>
+        </sc-if>
+        <sc-if value="{{roomRecord}}" hint-placeholder-val="{{ true }}">
+          <span class="cc-pulse" title="On the record" style="width: 10px; height: 10px; border-radius: 50%; background: #FF7A45"></span>
+        </sc-if>
+      </aside>
+    </sc-if>
+  </div>
+
+  <!-- ───────── Header popovers ───────── -->
+  <sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}">
+    <button aria-label="Close menu" onClick="{{closeMenu}}" style="position: absolute; inset: 0; z-index: 20; border: none; background: transparent; cursor: default"></button>
+  </sc-if>
+
+  <sc-if value="{{menuIs.display}}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-label="Chat display" class="cc-scroll" style="max-height: calc(100vh - 96px); overflow-y: auto; position: absolute; top: 72px; right: 16px; z-index: 30; width: 340px; max-width: calc(100% - 32px); padding: 16px; border-radius: 16px; background: {{t.surface}}; border: 1px solid {{t.line}}; box-shadow: {{t.shadow}}; display: flex; flex-direction: column; gap: 14px">
+      <div style="font-size: 17px; font-weight: 750">Chat display</div>
+      <div role="group" aria-label="Apply changes to" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: {{t.raised}}">
+        <sc-for list="{{scopes}}" as="o" hint-placeholder-count="2">
+          <button onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 38px; border-radius: 9px; border: none; background: {{o.bg}}; color: {{o.fg}}; font-size: 14px; font-weight: 650">{{o.label}}</button>
+        </sc-for>
+      </div>
+      <div style="font-size: 12px; color: {{t.muted}}">{{scopeHint}}</div>
+
+      <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">THEME</div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+        <sc-for list="{{presets}}" as="p" hint-placeholder-count="3">
+          <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 12px; border: 2px solid {{p.ring}}; background: transparent; text-align: left">
+            <span style="display: block; height: 44px; border-radius: 8px; background: {{p.bg}}; border: 1px solid {{p.line}}; position: relative">
+              <span style="position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid {{p.ink}}"></span>
+            </span>
+            <span style="font-size: 13px; font-weight: 650">{{p.label}}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">ACCENT</div>
+      <div style="display: flex; gap: 8px">
+        <sc-for list="{{accents}}" as="c" hint-placeholder-count="5">
+          <button onClick="{{c.pick}}" aria-label="{{c.aria}}" aria-pressed="{{c.on}}" style="width: 36px; height: 36px; border-radius: 50%; background: {{c.hex}}; border: 3px solid {{c.ring}}"></button>
+        </sc-for>
+      </div>
+
+      <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">BUBBLES</div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: {{t.raised}}">
+        <sc-for list="{{shapes}}" as="o" hint-placeholder-count="2">
+          <button onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 36px; border-radius: 9px; border: none; background: {{o.bg}}; color: {{o.fg}}; font-size: 14px; font-weight: 650">{{o.label}}</button>
+        </sc-for>
+      </div>
+
+      <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">BACKGROUND</div>
+      <div role="group" aria-label="Circle background" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: {{t.raised}}">
+        <sc-for list="{{backgrounds}}" as="o" hint-placeholder-count="3">
+          <button onClick="{{o.pick}}" aria-pressed="{{o.on}}" disabled="{{o.disabled}}" style="height: 36px; border-radius: 9px; border: none; background: {{o.bg}}; color: {{o.fg}}; font-size: 14px; font-weight: 650">{{o.label}}</button>
+        </sc-for>
+      </div>
+      <div style="font-size: 12px; color: {{t.muted}}">New messages send ripples through the waves or splash the ball pool.</div>
+      <sc-if value="{{bgHasProps}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid {{t.line}}">
+          <sc-if value="{{bgIsWaves}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <span style="flex: 0 0 72px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">COLOUR</span>
+              <div role="group" aria-label="Wave colour" style="flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: 6px">
+                <sc-for list="{{bgColors}}" as="c" hint-placeholder-count="6">
+                  <button onClick="{{c.pick}}" aria-label="{{c.aria}}" aria-pressed="{{c.on}}" title="{{c.aria}}" style="width: 30px; height: 30px; padding: 0; border-radius: 50%; background: {{c.hex}}; color: {{c.markInk}}; border: 3px solid {{c.ring}}; font-size: 11px; font-weight: 750">{{c.mark}}</button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <sc-for list="{{bgChoices}}" as="g" hint-placeholder-count="0">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <span style="flex: 0 0 72px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">{{g.label}}</span>
+              <div role="group" aria-label="{{g.aria}}" style="flex: 1 1 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 10px; background: {{t.raised}}">
+                <sc-for list="{{g.options}}" as="o" hint-placeholder-count="3">
+                  <button onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 32px; border-radius: 8px; border: none; background: {{o.bg}}; color: {{o.fg}}; font-size: 13px; font-weight: 650">{{o.label}}</button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          <sc-for list="{{bgSliders}}" as="sl" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <label for="{{sl.id}}" style="flex: 0 0 72px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">{{sl.label}}</label>
+              <input id="{{sl.id}}" type="range" min="{{sl.min}}" max="{{sl.max}}" step="{{sl.step}}" value="{{sl.value}}" onChange="{{sl.onChange}}" style="flex: 1 1 auto; min-width: 0; accent-color: {{t.accent}}">
+              <span style="flex: 0 0 44px; font-size: 13px; font-weight: 650; text-align: right">{{sl.display}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{hasFxError}}" hint-placeholder-val="{{ false }}">
+        <div role="alert" style="font-size: 12px; font-weight: 650; color: {{t.accent}}">{{fxError}}</div>
+      </sc-if>
+
+      <sc-if value="{{hasMyTheme}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px dashed {{t.line}}">
+          <span style="flex: 1 1 auto; font-size: 13px">{{myThemeNote}}</span>
+          <button onClick="{{resetMyTheme}}" style="height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid {{t.line}}; background: {{t.raised}}; font-size: 13px; font-weight: 650; white-space: nowrap">Use room theme</button>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{menuIs.room}}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-label="Room settings" style="position: absolute; top: 72px; right: 16px; z-index: 30; width: 360px; max-width: calc(100% - 32px); padding: 16px; border-radius: 16px; background: {{t.surface}}; border: 1px solid {{t.line}}; box-shadow: {{t.shadow}}; display: flex; flex-direction: column; gap: 16px">
+      <div style="font-size: 17px; font-weight: 750">Room settings</div>
+
+      <section style="display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <div style="flex: 1 1 auto">
+            <div style="font-size: 15px; font-weight: 650">Comment frequency</div>
+            <div style="font-size: 12px; color: {{t.muted}}">Limit how often each person can post.</div>
+          </div>
+          <button onClick="{{toggleFreq}}" aria-pressed="{{freq.on}}" aria-label="Comment frequency limit" style="width: 48px; height: 28px; padding: 3px; border-radius: 999px; border: none; background: {{sw.freq.track}}; display: flex; justify-content: {{sw.freq.justify}}; transition: background .2s">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: {{sw.freq.knob}}"></span>
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 14px">
+          <input type="number" min="1" max="99" value="{{freq.count}}" onChange="{{onFreqCount}}" disabled="{{freqOff}}" aria-label="Messages allowed" style="width: 64px; height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid {{t.line}}; background: {{t.bg}}">
+          <span>messages per</span>
+          <input type="number" min="1" max="3600" value="{{freq.seconds}}" onChange="{{onFreqSeconds}}" disabled="{{freqOff}}" aria-label="Window in seconds" style="width: 72px; height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid {{t.line}}; background: {{t.bg}}">
+          <span>seconds</span>
+        </div>
+        <sc-if value="{{hasFreqError}}" hint-placeholder-val="{{ false }}">
+          <div role="alert" style="font-size: 12px; font-weight: 650; color: {{t.accent}}">{{freqError}}</div>
+        </sc-if>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid {{t.line}}">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <div style="flex: 1 1 auto">
+            <div style="font-size: 15px; font-weight: 650">Start after next comment</div>
+            <div style="font-size: 12px; color: {{t.muted}}">Bubbles stay put until the next comment, then their duration counts down.</div>
+          </div>
+          <button onClick="{{toggleRoomUntilNext}}" aria-pressed="{{roomUntilNext}}" aria-label="Start after next comment" style="width: 48px; height: 28px; padding: 3px; border-radius: 999px; border: none; background: {{sw.next.track}}; display: flex; justify-content: {{sw.next.justify}}; transition: background .2s">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: {{sw.next.knob}}"></span>
+          </button>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid {{t.line}}">
+        <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">BADGES</div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <div style="flex: 1 1 auto">
+            <div style="font-size: 15px; font-weight: 650">Dominator</div>
+            <div style="font-size: 12px; color: {{t.muted}}">Seats grow with each person's share of the conversation; the top talker wears the badge.</div>
+          </div>
+          <button onClick="{{toggleDominator}}" aria-pressed="{{dominator}}" aria-label="Dominator badge" style="width: 48px; height: 28px; padding: 3px; border-radius: 999px; border: none; background: {{sw.dom.track}}; display: flex; justify-content: {{sw.dom.justify}}; transition: background .2s">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: {{sw.dom.knob}}"></span>
+          </button>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid {{t.line}}">
+        <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">PROTOTYPE</div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <div style="flex: 1 1 auto">
+            <div style="font-size: 15px; font-weight: 650">Simulated chatter</div>
+            <div style="font-size: 12px; color: {{t.muted}}">Everyone except the person you're acting as posts sample comments.</div>
+          </div>
+          <button onClick="{{toggleSimulate}}" aria-pressed="{{simulate}}" aria-label="Simulated chatter" style="width: 48px; height: 28px; padding: 3px; border-radius: 999px; border: none; background: {{sw.sim.track}}; display: flex; justify-content: {{sw.sim.justify}}; transition: background .2s">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: {{sw.sim.knob}}"></span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </sc-if>
+
+  <!-- ───────── Change topic modal ───────── -->
+  <sc-if value="{{topicModalOpen}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px">
+      <button aria-label="Cancel topic change" onClick="{{closeTopicModal}}" style="position: absolute; inset: 0; border: none; background: rgba(0,0,0,.55); cursor: default"></button>
+      <div role="dialog" aria-modal="true" aria-labelledby="cc-topic-title" style="position: relative; width: 440px; max-width: 100%; padding: 20px; border-radius: 18px; background: {{t.surface}}; border: 1px solid {{t.line}}; box-shadow: {{t.shadow}}; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; align-items: center; gap: 14px">
+          <span aria-hidden="true" style="flex: 0 0 auto; position: relative; width: 64px; height: 64px; border-radius: 50%; background: {{tdUi.core}}; border: 1.5px solid {{tdUi.ringBorder}}; transition: background .3s, border-color .3s">
+            <span style="position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); border-radius: 50%; background: {{tdUi.core}}; transition: background .3s"></span>
+          </span>
+          <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+            <h2 id="cc-topic-title" style="margin: 0; font-size: 20px; font-weight: 750; letter-spacing: -0.01em">Change topic</h2>
+            <div style="font-size: 13px; color: {{t.muted}}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Currently: {{topicName}}</div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="cc-topic-name" style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">NEW TOPIC</label>
+          <input id="cc-topic-name" type="text" autofocus="" maxlength="80" autocomplete="off" placeholder="What should we talk about next?" value="{{td.name}}" onChange="{{onTopicName}}" onKeyDown="{{onTopicNameKey}}" style="height: 48px; padding: 0 14px; border-radius: 12px; border: 1.5px solid {{t.line}}; background: {{t.bg}}; font-size: 16px">
+          <sc-if value="{{td.hasError}}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="font-size: 12px; font-weight: 650; color: {{t.accent}}">{{td.error}}</div>
+          </sc-if>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">COLOR</div>
+          <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px">
+            <sc-for list="{{tdSwatches}}" as="c" hint-placeholder-count="6">
+              <button onClick="{{c.pick}}" aria-label="{{c.aria}}" aria-pressed="{{c.on}}" style="width: 36px; height: 36px; border-radius: 50%; background: {{c.hex}}; border: 3px solid {{c.ring}}"></button>
+            </sc-for>
+            <input type="color" value="{{td.color}}" onChange="{{onTopicColorInput}}" aria-label="Custom topic color" style="width: 36px; height: 36px; padding: 0; border: 1px solid {{t.line}}; border-radius: 8px; background: transparent">
+          </div>
+          <label for="cc-topic-op" style="display: flex; justify-content: space-between; margin-top: 4px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}"><span>OPACITY</span><span>{{td.opacityLabel}}</span></label>
+          <input id="cc-topic-op" type="range" min="0" max="100" step="5" value="{{td.opacityPct}}" onChange="{{onTopicOpacity}}" style="width: 100%; accent-color: {{td.color}}">
+          <div style="font-size: 12px; color: {{t.muted}}">Tints the circle and this topic's section of the history.</div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px">
+          <button onClick="{{closeTopicModal}}" style="height: 44px; padding: 0 16px; border-radius: 11px; border: 1px solid {{t.line}}; background: transparent; font-size: 15px; font-weight: 650">Cancel</button>
+          <button onClick="{{confirmTopic}}" style="height: 44px; padding: 0 18px; border-radius: 11px; border: none; background: {{t.accent}}; color: {{t.accentInk}}; font-size: 15px; font-weight: 700">Change topic</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"ringMax":{"editor":"range","default":600,"min":420,"max":820,"step":10,"unit":"px","section":"Circle"},"seatSize":{"editor":"range","default":56,"min":40,"max":80,"step":2,"unit":"px","section":"Circle"},"fadeShare":{"editor":"range","default":0.15,"min":0.05,"max":0.5,"step":0.05,"section":"Bubbles"},"seed":{"editor":"int","default":7,"section":"Prototype"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+
+  // ───────────────────────── static data ─────────────────────────
+
+  static PRESETS = {
+    campfire: { label: 'Campfire', bg: '#121016', surface: '#1B1820', raised: '#25212B', ink: '#F3EFE9', muted: '#A9A2B3', line: '#332D3B', shadow: '0 14px 40px rgba(0,0,0,.45)' },
+    daylight: { label: 'Daylight', bg: '#F2F0EB', surface: '#FFFFFF', raised: '#ECE9E2', ink: '#1B1A1F', muted: '#5D5965', line: '#D9D4CA', shadow: '0 14px 40px rgba(40,30,20,.14)' },
+    ink:      { label: 'Ink',      bg: '#050505', surface: '#0F0F0F', raised: '#1B1B1B', ink: '#FFFFFF', muted: '#B5B5B5', line: '#323232', shadow: '0 14px 40px rgba(0,0,0,.6)' },
+  };
+  static ACCENTS = ['#F4A259', '#6EA8FE', '#D4FF3A', '#C792EA', '#4CC9A6'];
+  static TOPIC_COLORS = ['#6EA8FE', '#4CC9A6', '#F4A259', '#C792EA', '#F27A9B', '#9AA0A6'];
+  static MSG_COLORS = ['#F4A259', '#6EA8FE', '#4CC9A6', '#C792EA', '#F27A9B', '#E9D16A', '#F3EFE9', '#1B1A1F', '#8FD16B'];
+  /** Participant colours, handed out in order to new joiners (first unused wins). */
+  static PALETTE = ['#6EA8FE', '#4CC9A6', '#C792EA', '#F27A9B', '#F4A259', '#E9D16A', '#8FD16B', '#5ED0F0', '#FFB4A2', '#A7B4FF', '#D9A3FF', '#9AA0A6'];
+  /** Bubble duration slider bounds (the composer's Duration control). */
+  static DURATION_RANGE = { minMs: 1000, maxMs: 10000 };
+  /**
+   * Bubble arc around each seat — a chat column bent around the speaker, read clockwise → counter-clockwise:
+   * oldest at the clockwise end, newest at the counter-clockwise end.
+   * - reach: distance (% of ring width) from the seat to each bubble's centre, toward the ring centre.
+   * - stepDeg: angle around the seat between neighbouring bubbles; the group is centred on "straight inward".
+   * - capacity: the arc may spread at most (smaller neighbour gap − gapPad) × gapScale degrees each side, capped at maxSpreadDeg.
+   * - maxFromCentre: bubbles are pulled in so they never sit closer than this to the ring's rim (% of width from centre).
+   * - pool: DOM nodes per participant (keyed by that person's message number) so bubbles glide between positions.
+   * - evictMs: a bubble pushed off the clockwise end slides one more step and fades out over this long.
+   * - enterPx: new bubbles fade in from this far counter-clockwise of their spot.
+   */
+  static FAN = { reach: 27, stepDeg: 40, maxSpreadDeg: 80, gapPad: 30, gapScale: 0.7, maxFromCentre: 44, pool: 8, evictMs: 450, enterPx: 36, fromSeatPx: 90 };
+  static VOLUMES = {
+    1: { label: 'Whisper', size: 13, weight: 400, italic: true,  upper: false, tracking: '0.01em' },
+    2: { label: 'Quiet',   size: 15, weight: 400, italic: false, upper: false, tracking: '0' },
+    3: { label: 'Normal',  size: 17, weight: 550, italic: false, upper: false, tracking: '0' },
+    4: { label: 'Loud',    size: 21, weight: 700, italic: false, upper: false, tracking: '-0.01em' },
+    5: { label: 'Shout',   size: 25, weight: 800, italic: false, upper: true,  tracking: '0.02em' },
+  };
+  static FOUNDERS = ['Ada', 'Bea', 'Chen', 'Dami'];
+  static BOT_LINES = [
+    'Can we timebox this to ten minutes?',
+    'I would ship the smaller version first.',
+    'Agree — but who owns the follow-up?',
+    'We tried that in spring. It stalled.',
+    'Say more about that?',
+    'I think we are mixing two problems.',
+    'What would change your mind?',
+    'Yes. This.',
+    'Let me push back a little here.',
+    'Can someone summarise where we landed?',
+  ];
+  static TRANSITION = 'transform .75s cubic-bezier(.2,.8,.2,1)';
+  static NAME_MAX = 24;
+  /** Widths (px) of the fixed side columns, used to fit the circle into what's left. */
+  static WIDTHS = { participants: 288, history: 340, historyClosed: 60, stagePad: 112 };
+
+  // ───────────────────────── pure helpers ─────────────────────────
+
+  /** Normalise any angle (deg, clockwise from 12 o'clock) into [180, 540) so the first seat (180°) never wraps. */
+  static normAngle(a) {
+    if (!Number.isFinite(a)) throw new Error('bug: non-finite angle ' + a);
+    return ((((a - 180) % 360) + 360) % 360) + 180;
+  }
+
+  static pointerAngle(dx, dy) {
+    return Component.normAngle(Math.atan2(dx, -dy) * 180 / Math.PI);
+  }
+
+  /**
+   * Evenly spaced home angle per participant, following `seatOrder` (clockwise) from `offset` degrees.
+   * seatOrder starts as join order; Recenter re-sorts it by where people actually sit.
+   */
+  static evenSlots(seatOrder, offset) {
+    if (!Number.isFinite(offset)) throw new Error('bug: non-finite slot offset ' + offset);
+    const n = seatOrder.length;
+    return Object.fromEntries(seatOrder.map((id, i) => [id, offset + (i * 360) / n]));
+  }
+
+  /**
+   * Recenter as a settled force layout: keep everyone's current clockwise order, space them evenly, and rotate
+   * the whole ring to the circular mean of their current positions so the total movement is as small as possible.
+   */
+  static recenter(s) {
+    const rad = Math.PI / 180;
+    const slots = Component.evenSlots(s.seatOrder, s.slotOffset);
+    const current = s.seatOrder
+      .map((id) => {
+        const p = Component.participantOf(s, id);
+        return { id, a: Component.normAngle(p.customAngle ?? slots[id]) };
+      })
+      .sort((x, y) => x.a - y.a);
+    const step = 360 / current.length;
+    const sx = current.reduce((acc, c, i) => acc + Math.sin((c.a - i * step) * rad), 0);
+    const cx = current.reduce((acc, c, i) => acc + Math.cos((c.a - i * step) * rad), 0);
+    const mean = Math.atan2(sx, cx) / rad;
+    // unwrap next to the first seat so every seat travels the short way round
+    const offset = current[0].a + ((((mean - current[0].a) % 360) + 540) % 360) - 180;
+    return {
+      seatOrder: current.map((c) => c.id),
+      slotOffset: offset,
+      participants: s.participants.map((p) => ({ ...p, customAngle: null })),
+    };
+  }
+
+  static hexToRgb(hex) {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!m) throw new Error('bug: expected #rrggbb colour, got ' + hex);
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  static rgbToHex(rgb) {
+    return '#' + rgb.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+  }
+
+  static mix(base, top, w) {
+    const a = Component.hexToRgb(base), b = Component.hexToRgb(top);
+    return Component.rgbToHex(a.map((v, i) => v + (b[i] - v) * w));
+  }
+
+  static rgba(hex, alpha) {
+    const [r, g, b] = Component.hexToRgb(hex);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  static luminance(hex) {
+    const lin = (v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const [r, g, b] = Component.hexToRgb(hex).map(lin);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  static contrastText(bg) {
+    const L = Component.luminance(bg);
+    const dark = (L + 0.05) / (Component.luminance('#141217') + 0.05);
+    const light = 1.05 / (L + 0.05);
+    return dark >= light ? '#141217' : '#FFFFFF';
+  }
+
+  static volume(level) {
+    const v = Component.VOLUMES[level];
+    if (!v) throw new Error('bug: unknown volume level ' + level);
+    return v;
+  }
+
+  /** Circle backgrounds: drawn by the WebGL backdrop engine; 'none' leaves the plain topic colour. */
+  static BACKGROUNDS = [['none', 'None'], ['waves', 'Waves'], ['balls', 'Ball pool']];
+
+  /**
+   * Per-background settings, stored on the theme (room or personal) so "For everyone / Just me" applies.
+   * waves.color: 'auto' (the topic's text colour), 'accent', or a hex. Slider values are in their display units.
+   * balls.size: s | m | l; balls.palette: candy | topic | mono.
+   */
+  static DEFAULT_BG = {
+    waves: { color: 'auto', intensity: 50, speed: 1, ripple: 1 },
+    balls: { count: 60, size: 'm', palette: 'candy', gravity: 60, bounce: 45, push: 100, opacity: 75 },
+  };
+  static BG_SLIDERS = {
+    waves: [
+      { key: 'intensity', label: 'INTENSITY', min: 10, max: 100, step: 5, unit: '%' },
+      { key: 'speed', label: 'SPEED', min: 0, max: 2, step: 0.1, unit: '×' },
+      { key: 'ripple', label: 'RIPPLES', min: 0, max: 2, step: 0.1, unit: '×' },
+    ],
+    balls: [
+      { key: 'count', label: 'BALLS', min: 10, max: 150, step: 5, unit: '' },
+      { key: 'gravity', label: 'GRAVITY', min: 0, max: 100, step: 5, unit: '%' },
+      { key: 'bounce', label: 'BOUNCE', min: 0, max: 90, step: 5, unit: '%' },
+      { key: 'push', label: 'PUSH', min: 0, max: 200, step: 10, unit: '%' },
+      { key: 'opacity', label: 'OPACITY', min: 20, max: 100, step: 5, unit: '%' },
+    ],
+  };
+  static WAVE_COLORS = [['auto', 'Auto (topic text colour)'], ['accent', 'Accent'], ['#FFFFFF', 'White'], ['#6EA8FE', 'Blue'], ['#4CC9A6', 'Teal'], ['#F27A9B', 'Pink']];
+  static POOL_SIZES = { s: 0.022, m: 0.032, l: 0.045 };
+  static CANDY = ['#E63946', '#FFB703', '#219EBC', '#2A9D8F', '#FB8500', '#8338EC', '#FF5D8F'];
+
+  static theme(spec) {
+    const p = Component.PRESETS[spec.preset];
+    if (!p) throw new Error('bug: unknown theme preset ' + spec.preset);
+    if (!Component.BACKGROUNDS.some(([id]) => id === spec.background)) throw new Error('bug: unknown background ' + spec.background);
+    return { ...p, accent: spec.accent, accentInk: Component.contrastText(spec.accent), shape: spec.shape, background: spec.background };
+  }
+
+  static rand(seed) {
+    const a = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return [((t ^ (t >>> 14)) >>> 0) / 4294967296, a];
+  }
+
+  static randN(seed, n) {
+    return Array.from({ length: n }).reduce(([vals, s]) => {
+      const [v, next] = Component.rand(s);
+      return [[...vals, v], next];
+    }, [[], seed]);
+  }
+
+  static counts(messages) {
+    return messages.reduce((acc, m) => ({ ...acc, [m.pid]: (acc[m.pid] ?? 0) + 1 }), {});
+  }
+
+  static dominatorId(counts) {
+    const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    if (ranked.length === 0 || ranked[0][1] < 3) return null;
+    if (ranked.length > 1 && ranked[1][1] === ranked[0][1]) return null;
+    return ranked[0][0];
+  }
+
+  static initialsOf(name) {
+    const parts = name.trim().split(/\s+/).filter((x) => x !== '');
+    if (parts.length === 0) throw new Error('bug: participant with an empty name');
+    return (parts.length === 1 ? parts[0].slice(0, 1) : parts[0].slice(0, 1) + parts[parts.length - 1].slice(0, 1)).toUpperCase();
+  }
+
+  static nextColor(participants) {
+    const used = new Set(participants.map((p) => p.color.toLowerCase()));
+    return Component.PALETTE.find((c) => !used.has(c.toLowerCase())) ?? Component.PALETTE[participants.length % Component.PALETTE.length];
+  }
+
+  /** Validate a new participant name against the roster. Returns an error message, or '' when OK. */
+  static nameError(name, participants) {
+    const n = name.trim();
+    if (n === '') return 'Enter a name.';
+    if (n.length > Component.NAME_MAX) return `Keep names to ${Component.NAME_MAX} characters.`;
+    if (participants.some((p) => p.name.toLowerCase() === n.toLowerCase())) return `Someone called ${n} is already in the circle.`;
+    return '';
+  }
+
+  static newComposer(color) {
+    const base = { volume: 3, color, durationMs: 5000, record: true };
+    // sticky = "Set as default" is ticked: per-message changes also update the defaults
+    return { base, draft: { ...base, text: '' }, sticky: false };
+  }
+
+  static newParticipant(id, name, color, joinedAt) {
+    return { id, name, color, joinedAt, customAngle: null };
+  }
+
+  static TOPIC_MAX = 80;
+
+  static currentTopic(s) {
+    const topic = s.topics.find((x) => x.id === s.topicId);
+    if (!topic) throw new Error('bug: no current topic ' + s.topicId);
+    return topic;
+  }
+
+  /** Ring, border and centre colours for a topic's tint over `bg`. */
+  static topicTint(bg, color, opacity) {
+    const core = Component.mix(bg, color, Math.min(1, opacity * 0.9 + 0.12));
+    return {
+      ringFill: Component.mix(bg, color, opacity * 0.55),
+      ringBorder: Component.mix(bg, color, Math.min(1, opacity + 0.3)),
+      core,
+      ink: Component.contrastText(core),
+    };
+  }
+
+  /** A fresh "change topic" draft whose colour is deliberately different from the current topic's. */
+  static newTopicDraft(current) {
+    const list = Component.TOPIC_COLORS;
+    const i = list.findIndex((c) => c.toLowerCase() === current.color.toLowerCase());
+    return { name: '', color: list[(i + 1) % list.length], opacity: current.opacity, error: '' };
+  }
+
+  static changeTopic(s, now) {
+    const d = s.topicDraft;
+    if (d === null) throw new Error('bug: confirming a topic change with no draft open');
+    const name = d.name.trim();
+    if (name === '') return { ...s, topicDraft: { ...d, error: 'Give the new topic a name.' } };
+    if (name.length > Component.TOPIC_MAX) return { ...s, topicDraft: { ...d, error: `Keep topics to ${Component.TOPIC_MAX} characters.` } };
+    const id = 't' + s.nextTopicId;
+    return {
+      ...s,
+      topics: [...s.topics, { id, name, color: d.color, opacity: d.opacity, startedAt: now }],
+      topicId: id, nextTopicId: s.nextTopicId + 1, topicDraft: null, jumpedTopicId: null,
+    };
+  }
+
+  /**
+   * Visible (unexpired) bubbles per participant, NEWEST FIRST, each tagged with `seq`:
+   * that person's own message number, used to keep one DOM node per bubble for its lifetime.
+   */
+  static bubbles(messages, now, fadeShare) {
+    const seqOf = (() => {
+      const counts = {};
+      return messages.map((m) => { const n = counts[m.pid] ?? 0; counts[m.pid] = n + 1; return n; });
+    })();
+    const visible = messages
+      .map((m, i) => {
+        const b = Component.bubbleFor(m, i + 1 < messages.length ? messages[i + 1].at : null, now, fadeShare);
+        return b === null ? null : { ...b, seq: seqOf[i] };
+      })
+      .filter((b) => b !== null);
+    const grouped = visible.reduce((acc, b) => ({ ...acc, [b.m.pid]: [b, ...(acc[b.m.pid] ?? [])] }), {});
+    return grouped;
+  }
+
+  /** Angular room (degrees around the ring) to the nearest seat clockwise and counter-clockwise. */
+  static neighbourGaps(angleOf) {
+    const ids = Object.keys(angleOf);
+    return Object.fromEntries(ids.map((id) => {
+      const diffs = ids.filter((o) => o !== id).map((o) => (((angleOf[o] - angleOf[id]) % 360) + 360) % 360);
+      if (diffs.length === 0) return [id, { cw: 360, ccw: 360 }];
+      return [id, { cw: Math.min(...diffs), ccw: Math.min(...diffs.map((d) => (d === 0 ? 0 : 360 - d))) }];
+    }));
+  }
+
+  /** How many bubbles fit on this seat's arc before the neighbours' arcs get in the way (1–5). */
+  static fanCapacity(gap) {
+    const F = Component.FAN;
+    const spread = Math.min(F.maxSpreadDeg, Math.max(0, (Math.min(gap.cw, gap.ccw) - F.gapPad) * F.gapScale));
+    return 1 + Math.floor((2 * spread) / F.stepDeg + 1e-9);
+  }
+
+  /**
+   * Place newest-first bubbles on the arc. `phi` is degrees around the seat, positive = counter-clockwise.
+   * Visible ones are centred on straight-inward with the newest at the counter-clockwise end. Anything past
+   * capacity is evicted: it slides one more step clockwise, fades, and is dropped evictMs after being pushed out.
+   */
+  /*
+   * `dir` = +1 grows the arc counter-clockwise (left/west half of the ring), -1 grows it clockwise (right/east half).
+   * `solo` marks the newest bubble when it is the only one showing: it emerges from the seat instead of the arc.
+   */
+  static fanLayout(list, cap, now, dir) {
+    if (!(cap >= 1)) throw new Error('bug: a seat with no room for bubbles');
+    if (dir !== 1 && dir !== -1) throw new Error('bug: fan direction must be +1 or -1, got ' + dir);
+    const F = Component.FAN;
+    const n = Math.min(list.length, cap);
+    const centre = (n - 1) / 2;
+    return list
+      .map((b, i) => (i < cap
+        // i = 0 is newest → k = n-1 (leading end of the arc); the oldest visible sits at k = 0 (trailing end)
+        ? { b, phi: ((n - 1 - i) - centre) * F.stepDeg * dir, evicted: false, evictedAt: null, solo: n === 1 && i === 0 }
+        : { b, phi: (-1 - (i - cap) - centre) * F.stepDeg * dir, evicted: true, evictedAt: list[i - cap].m.at, solo: false }))
+      .filter((f) => !f.evicted || now - f.evictedAt < F.evictMs);
+  }
+
+  /**
+   * Speech-bubble tail: which edge of the bubble faces the speaker's seat, where along that edge, and the
+   * angle (screen degrees, 0 = pointing right) from there to the seat. Bubbles are wide and short, so the
+   * top/bottom edge is preferred unless the seat is mostly to the side.
+   */
+  static tailFor(seatDeg, pt) {
+    const th = (seatDeg * Math.PI) / 180;
+    const dx = 50 + 50 * Math.sin(th) - pt.left;
+    const dy = 50 - 50 * Math.cos(th) - pt.top;
+    const len = Math.hypot(dx, dy);
+    if (len === 0) throw new Error('bug: bubble placed exactly on its seat');
+    const ux = dx / len, uy = dy / len;
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const edge = Math.abs(uy) > 0.35
+      ? { left: `${clamp(50 + ux * 45, 16, 84).toFixed(1)}%`, top: uy > 0 ? '100%' : '0%' }
+      : { left: ux > 0 ? '100%' : '0%', top: `${clamp(50 + uy * 40, 30, 70).toFixed(1)}%` };
+    return { ...edge, deg: ((Math.atan2(dy, dx) * 180) / Math.PI).toFixed(1) };
+  }
+
+  /** Centre of a bubble in ring-% coordinates for a seat at `seatDeg` (clockwise from 12 o'clock). */
+  static fanPoint(seatDeg, phiDeg) {
+    const F = Component.FAN;
+    const th = (seatDeg * Math.PI) / 180;
+    const phi = (phiDeg * Math.PI) / 180; // screen rotation of the inward vector; positive swings counter-clockwise
+    const ux = -Math.sin(th), uy = Math.cos(th); // inward, toward the centre
+    const vx = ux * Math.cos(phi) - uy * Math.sin(phi);
+    const vy = ux * Math.sin(phi) + uy * Math.cos(phi);
+    const px = 50 * Math.sin(th) + F.reach * vx; // relative to the ring centre
+    const py = -50 * Math.cos(th) + F.reach * vy;
+    const dist = Math.hypot(px, py);
+    const k = dist > F.maxFromCentre ? F.maxFromCentre / dist : 1;
+    return { left: 50 + px * k, top: 50 + py * k };
+  }
+
+  /**
+   * A bubble stays solid, then fades out over the final `fadeShare` of its duration
+   * (capped at 1.5s so long durations still end crisply).
+   */
+  static bubbleFor(m, nextAt, now, fadeShare) {
+    if (!(fadeShare > 0 && fadeShare < 1)) throw new Error('bug: fadeShare must be between 0 and 1, got ' + fadeShare);
+    if (typeof m.durationMs !== 'number') throw new Error('bug: message without a duration ' + m.id);
+    // "Start after next comment": hold solid until anyone posts again, then run the normal countdown from that moment.
+    if (m.untilNext && nextAt === null) return { m, opacity: 1, progress: null, waiting: true };
+    const start = m.untilNext ? nextAt : m.at;
+    const age = now - start;
+    if (age >= m.durationMs) return null;
+    const fadeMs = Math.min(1500, m.durationMs * fadeShare);
+    const fadeFrom = m.durationMs - fadeMs;
+    const opacity = age < fadeFrom ? 1 : Math.max(0, 1 - (age - fadeFrom) / fadeMs);
+    return { m, opacity, progress: Math.max(0, 1 - age / m.durationMs), waiting: false };
+  }
+
+  static rateLimit(messages, pid, freq, now) {
+    if (!freq.on) return { blocked: false, waitSec: 0, used: 0 };
+    const windowMs = freq.seconds * 1000;
+    const recent = messages.filter((m) => m.pid === pid && now - m.at < windowMs);
+    if (recent.length < freq.count) return { blocked: false, waitSec: 0, used: recent.length };
+    const gate = recent[recent.length - freq.count];
+    return { blocked: true, waitSec: Math.max(1, Math.ceil((gate.at + windowMs - now) / 1000)), used: recent.length };
+  }
+
+  static post(s, msg) {
+    return { ...s, messages: [...s.messages, { ...msg, id: s.nextId }], nextId: s.nextId + 1 };
+  }
+
+  /** Per-message style fields set from the Send button's options; `base` holds each person's defaults for them. */
+  static STYLE_FIELDS = ['volume', 'color', 'durationMs', 'record'];
+
+  static pick(obj, keys) {
+    return Object.fromEntries(keys.map((k) => [k, obj[k]]));
+  }
+
+  static omit(obj, key) {
+    return Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key));
+  }
+
+  static composerOf(s) {
+    const c = s.composers[s.sendAs];
+    if (!c) throw new Error('bug: no composer for participant ' + s.sendAs);
+    return c;
+  }
+
+  static withComposer(s, fn) {
+    return { composers: { ...s.composers, [s.sendAs]: fn(Component.composerOf(s)) } };
+  }
+
+  /** Change this message's style; with "Set as default" ticked the change becomes the default too. */
+  static setDraft(c, patch) {
+    const bad = Object.keys(patch).filter((k) => !Component.STYLE_FIELDS.includes(k));
+    if (bad.length > 0) throw new Error('bug: not a message style field: ' + bad.join(', '));
+    return { ...c, draft: { ...c.draft, ...patch }, base: c.sticky ? { ...c.base, ...patch } : c.base };
+  }
+
+  /** Visible to everyone: the room is on the record but this participant has their own comments off it. */
+  static isMuted(s, pid) {
+    const c = s.composers[pid];
+    if (!c) throw new Error('bug: no composer for participant ' + pid);
+    return s.roomRecord && !c.draft.record;
+  }
+
+  static participantOf(s, pid) {
+    const p = s.participants.find((x) => x.id === pid);
+    if (!p) throw new Error('bug: unknown participant ' + pid);
+    return p;
+  }
+
+  static send(s, now) {
+    const c = Component.composerOf(s);
+    const text = c.draft.text.trim();
+    if (text === '') return s;
+    if (Component.rateLimit(s.messages, s.sendAs, s.freq, now).blocked) return s;
+    const posted = Component.post(s, {
+      pid: s.sendAs, name: Component.participantOf(s, s.sendAs).name, topicId: s.topicId, text, at: now,
+      color: c.draft.color, volume: c.draft.volume,
+      durationMs: c.draft.durationMs, untilNext: s.roomUntilNext,
+      onRecord: s.roomRecord && c.draft.record,
+    });
+    // after sending, the next message starts again from this person's defaults
+    return { ...posted, composers: { ...s.composers, [s.sendAs]: { ...c, draft: { ...c.base, text: '' } } }, menu: null };
+  }
+
+  static addParticipant(s, name, now) {
+    const err = Component.nameError(name, s.participants);
+    if (err !== '') return { ...s, newNameError: err };
+    const id = 'p' + s.nextPid;
+    const color = Component.nextColor(s.participants);
+    return {
+      ...s,
+      participants: [...s.participants, Component.newParticipant(id, name.trim(), color, now)],
+      seatOrder: [...s.seatOrder, id],
+      composers: { ...s.composers, [id]: Component.newComposer(color) },
+      nextPid: s.nextPid + 1, newName: '', newNameError: '',
+    };
+  }
+
+  static removeParticipant(s, id) {
+    if (s.participants.length <= 1) throw new Error('bug: tried to remove the last participant');
+    Component.participantOf(s, id);
+    const participants = s.participants.filter((p) => p.id !== id);
+    return {
+      ...s,
+      participants,
+      seatOrder: s.seatOrder.filter((x) => x !== id),
+      sendAs: s.sendAs === id ? participants[0].id : s.sendAs,
+      composers: Component.omit(s.composers, id),
+      myThemes: Component.omit(s.myThemes, id),
+      filterPids: s.filterPids.filter((x) => x !== id),
+    };
+  }
+
+  static step(s, now) {
+    if (!s.simulate || now < s.nextBotAt) return { ...s, now };
+    const [[r1, r2, r3, r4, r5, r6], seed] = Component.randN(s.seed, 6);
+    const nextBotAt = now + 3200 + r4 * 4800;
+    const bots = s.participants.filter((p) => p.id !== s.sendAs && !Component.rateLimit(s.messages, p.id, s.freq, now).blocked);
+    if (bots.length === 0) return { ...s, now, seed, nextBotAt };
+    const bot = bots[Math.floor(r1 * bots.length)];
+    const volumes = [1, 2, 3, 3, 3, 4, 4, 5];
+    return Component.post({ ...s, now, seed, nextBotAt }, {
+      pid: bot.id, name: bot.name, topicId: s.topicId,
+      text: Component.BOT_LINES[Math.floor(r2 * Component.BOT_LINES.length)],
+      at: now, color: bot.color,
+      volume: volumes[Math.floor(r3 * volumes.length)],
+      durationMs: [3000, 5000, 8000][Math.floor(r6 * 3)], untilNext: s.roomUntilNext,
+      onRecord: s.roomRecord && r5 > 0.2,
+    });
+  }
+
+  static initialState(now, seed) {
+    const participants = Component.FOUNDERS.map((name, i) =>
+      Component.newParticipant('p' + (i + 1), name, Component.PALETTE[i], now - (Component.FOUNDERS.length - i) * 60000));
+    return {
+      now, seed, nextBotAt: now + 2000,
+      participants, nextPid: participants.length + 1,
+      seatOrder: participants.map((p) => p.id), slotOffset: 180,
+      composers: Object.fromEntries(participants.map((p) => [p.id, Component.newComposer(p.color)])),
+      sendAs: participants[0].id,
+      newName: '', newNameError: '', participantFilter: '',
+      holding: false,
+      messages: [], nextId: 1,
+      topics: [{ id: 't1', name: 'What should we decide today?', color: '#6EA8FE', opacity: 0.22, startedAt: now }],
+      topicId: 't1', nextTopicId: 2, topicDraft: null, jumpedTopicId: null,
+      roomRecord: true, roomUntilNext: false,
+      filterText: '', filterPids: [],
+      drawerOpen: true, menu: null,
+      themeScope: 'everyone', roomTheme: { preset: 'campfire', accent: '#F4A259', shape: 'round', background: 'waves', ...Component.DEFAULT_BG }, myThemes: {}, fxError: '',
+      freq: { on: false, count: 2, seconds: 10 }, freqError: '',
+      dominator: false, simulate: false, dragging: null,
+    };
+  }
+
+  // ───────────────────────── animated background (pure parts) ─────────────────────────
+
+  /**
+   * Where a participant's newest bubble sits (ring %), using the same fan rules as rendering.
+   * Returns null for someone no longer in the circle.
+   */
+  static newestBubblePoint(s, pid, fadeShare) {
+    const slots = Component.evenSlots(s.seatOrder, s.slotOffset);
+    const angleOf = Object.fromEntries(s.participants.map((p) => [p.id, p.customAngle ?? slots[p.id]]));
+    if (angleOf[pid] === undefined) return null;
+    const gaps = Component.neighbourGaps(angleOf);
+    const visible = (Component.bubbles(s.messages, s.now, fadeShare)[pid] ?? []).length;
+    const n = Math.max(1, Math.min(visible, Component.fanCapacity(gaps[pid])));
+    const dir = Math.sin((angleOf[pid] * Math.PI) / 180) > 0.0001 ? -1 : 1;
+    return Component.fanPoint(angleOf[pid], ((n - 1) / 2) * Component.FAN.stepDeg * dir);
+  }
+
+  /** Spawn `count` new pool balls near the top of the ring (they then fall in). Returns [balls, nextSeed]. */
+  static spawnBalls(seed, count) {
+    const [vals, next] = Component.randN(seed, count * 4);
+    const balls = Array.from({ length: count }, (_, i) => {
+      const [a, b, c, d] = vals.slice(i * 4, i * 4 + 4);
+      return { x: 0.5 + (a - 0.5) * 0.5, y: 0.1 + b * 0.35, vx: (c - 0.5) * 0.3, vy: 0, k: 0.85 + d * 0.3, ci: Math.floor(c * 9973) };
+    });
+    return [balls, next];
+  }
+
+  /** Grow or shrink the pool to `count`, keeping the balls already there. Returns [balls, nextSeed]. */
+  static fitPool(balls, count, seed) {
+    if (!Number.isInteger(count) || count < 0) throw new Error('bug: ball count must be a whole number, got ' + count);
+    if (balls.length >= count) return [balls.slice(0, count), seed];
+    const [extra, next] = Component.spawnBalls(seed, count - balls.length);
+    return [[...balls, ...extra], next];
+  }
+
+  /** Ball colours for a palette choice. */
+  static poolPalette(kind, topicColor, t, ink) {
+    const M = Component.mix;
+    if (kind === 'candy') return Component.CANDY;
+    if (kind === 'topic') return [M(topicColor, '#FFFFFF', 0.45), topicColor, M(topicColor, '#000000', 0.3), M(topicColor, '#FFFFFF', 0.7)];
+    if (kind === 'mono') return [ink, M(ink, t.bg, 0.35), M(ink, t.bg, 0.6)];
+    throw new Error('bug: unknown ball palette ' + kind);
+  }
+
+  /**
+   * One step of the ball pool: kicks splash balls away from a new bubble (louder = harder, scaled by Push),
+   * gravity pulls them down (or, at 0%, they drift), balls collide with each other, and bounce off the ring
+   * wall with the chosen bounciness. Ring units: 0..1 with the centre at 0.5,0.5 and y pointing down.
+   */
+  static stepPool(balls, dt, kicks, p, t) {
+    if (!(dt >= 0)) throw new Error('bug: negative time step ' + dt);
+    if (!(p.baseR > 0)) throw new Error('bug: ball pool needs a positive ball size');
+    const g = (p.gravity / 100) * 2.4, e = p.bounce / 100, pushK = p.push / 100;
+    const SUB = 3, h = dt / SUB;
+    const rOf = (b) => p.baseR * b.k;
+    // working copies: the physics below updates these in place, the caller's array is untouched
+    const bs = balls.map((b) => {
+      const kick = kicks.reduce((acc, k) => {
+        const dx = b.x - k.x, dy = b.y - k.y;
+        const d = Math.max(1e-4, Math.hypot(dx, dy));
+        const f = (k.strength * pushK * 0.7) / (d * 7 + 0.2);
+        return { vx: acc.vx + (dx / d) * f, vy: acc.vy + (dy / d) * f };
+      }, { vx: 0, vy: 0 });
+      return { ...b, vx: b.vx + kick.vx, vy: b.vy + kick.vy };
+    });
+    for (let step = 0; step < SUB; step++) {
+      const damp = Math.exp(-h * 0.35);
+      bs.forEach((b, i) => {
+        if (g === 0) { b.vx += Math.cos(t * 0.3 + i) * 0.05 * h; b.vy += Math.sin(t * 0.27 + i * 1.7) * 0.05 * h; }
+        b.vy += g * h;
+        b.vx *= damp; b.vy *= damp;
+        b.x += b.vx * h; b.y += b.vy * h;
+      });
+      for (let i = 0; i < bs.length; i++) {
+        for (let j = i + 1; j < bs.length; j++) {
+          const a = bs[i], b = bs[j];
+          const dx = b.x - a.x, dy = b.y - a.y, min = rOf(a) + rOf(b);
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= min * min || d2 < 1e-12) continue;
+          const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, over = (min - d) / 2;
+          a.x -= nx * over; a.y -= ny * over; b.x += nx * over; b.y += ny * over;
+          const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+          if (vn < 0) {
+            const imp = (-(1 + e) * vn) / 2;
+            a.vx -= imp * nx; a.vy -= imp * ny; b.vx += imp * nx; b.vy += imp * ny;
+          }
+        }
+      }
+      bs.forEach((b) => {
+        const cx = b.x - 0.5, cy = b.y - 0.5, lim = 0.5 - rOf(b), d = Math.hypot(cx, cy);
+        if (d <= lim) return;
+        const nx = cx / d, ny = cy / d;
+        b.x = 0.5 + nx * lim; b.y = 0.5 + ny * lim;
+        const vn = b.vx * nx + b.vy * ny;
+        if (vn > 0) { b.vx -= (1 + e) * vn * nx; b.vy -= (1 + e) * vn * ny; }
+      });
+    }
+    return bs;
+  }
+
+  static QUAD_VERT = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }';
+  static WAVE_FRAG = [
+    'precision highp float;',
+    'varying vec2 uv;',
+    'uniform float uPhase; uniform vec3 uInk; uniform float uIntensity;',
+    'uniform vec4 uRipples[8];',
+    'void main(){',
+    '  vec2 q = vec2(uv.x, 1.0 - uv.y);',
+    '  vec2 c = q - 0.5; float d = length(c);',
+    '  if (d > 0.5) { gl_FragColor = vec4(0.0); return; }',
+    '  float w = sin(q.x * 9.0 + uPhase * 0.6) * 0.5 + sin(q.y * 7.0 - uPhase * 0.45 + q.x * 3.0) * 0.5;',
+    '  w += sin(d * 24.0 - uPhase * 1.2) * 0.35;',
+    '  float a = (0.05 + 0.045 * w) * uIntensity * 2.0;',
+    '  for (int i = 0; i < 8; i++) {',
+    '    vec4 r = uRipples[i];',
+    '    if (r.w <= 0.0) continue;',
+    '    float rad = r.z * 0.32;',
+    '    float dist = length(q - r.xy);',
+    '    float band = exp(-pow((dist - rad) * 26.0, 2.0));',
+    '    a += band * exp(-r.z * 1.4) * r.w * 0.32 * (0.65 + 0.35 * sin((dist - rad) * 90.0));',
+    '  }',
+    '  a = clamp(a, 0.0, 0.6) * smoothstep(0.5, 0.49, d);',
+    '  gl_FragColor = vec4(uInk * a, a);',
+    '}',
+  ].join('\n');
+  static BALL_VERT = [
+    'attribute vec2 aPos; attribute float aRad; attribute vec3 aCol;',
+    'uniform float uSize; varying vec3 vCol;',
+    'void main(){',
+    '  vCol = aCol;',
+    '  gl_Position = vec4(aPos.x * 2.0 - 1.0, 1.0 - aPos.y * 2.0, 0.0, 1.0);',
+    '  gl_PointSize = aRad * 2.0 * uSize;',
+    '}',
+  ].join('\n');
+  static BALL_FRAG = [
+    'precision mediump float;',
+    'varying vec3 vCol; uniform vec2 uRes; uniform float uOpacity;',
+    'void main(){',
+    '  vec2 q = gl_FragCoord.xy / uRes;',
+    '  if (length(q - 0.5) > 0.5) discard;',
+    '  vec2 pc = gl_PointCoord * 2.0 - 1.0;',
+    '  float d = length(pc);',
+    '  if (d > 1.0) discard;',
+    '  vec3 n = vec3(pc.x, pc.y, sqrt(max(0.0, 1.0 - d * d)));',
+    '  float light = clamp(dot(n, normalize(vec3(-0.5, -0.6, 0.65))), 0.0, 1.0);',
+    '  vec3 col = vCol * (0.5 + 0.6 * light) + pow(light, 18.0) * 0.45;',
+    '  float a = uOpacity * (1.0 - smoothstep(0.9, 1.0, d));',
+    '  gl_FragColor = vec4(col * a, a);',
+    '}',
+  ].join('\n');
+
+  /**
+   * Factory for the WebGL backdrop: returns a ready-to-draw engine or throws (no WebGL, shader errors).
+   * draw({ mode: 'none' })
+   * draw({ mode: 'waves', ink: [r,g,b] 0..1, phase, intensity 0..1, ripples: [{x,y,age,strength}] })
+   * draw({ mode: 'balls', opacity 0..1, balls: [{x,y,r,rgb:[r,g,b]}] })   — all positions in ring units
+   */
+  static createBackdropEngine(canvas) {
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('bug: no #cc-bg canvas in the ring');
+    const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false });
+    if (!gl) throw new Error('WebGL isn’t available here, so animated backgrounds can’t be shown.');
+    const compile = (type, src) => {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error('bug: background shader failed to compile: ' + gl.getShaderInfoLog(sh));
+      return sh;
+    };
+    const program = (vs, fs) => {
+      const prog = gl.createProgram();
+      gl.attachShader(prog, compile(gl.VERTEX_SHADER, vs));
+      gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('bug: background shader failed to link: ' + gl.getProgramInfoLog(prog));
+      return prog;
+    };
+    const waveProg = program(Component.QUAD_VERT, Component.WAVE_FRAG);
+    const ballProg = program(Component.BALL_VERT, Component.BALL_FRAG);
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const ballBuf = gl.createBuffer();
+    const wl = {
+      p: gl.getAttribLocation(waveProg, 'p'), phase: gl.getUniformLocation(waveProg, 'uPhase'), ink: gl.getUniformLocation(waveProg, 'uInk'),
+      intensity: gl.getUniformLocation(waveProg, 'uIntensity'), ripples: gl.getUniformLocation(waveProg, 'uRipples'),
+    };
+    const bl = {
+      pos: gl.getAttribLocation(ballProg, 'aPos'), rad: gl.getAttribLocation(ballProg, 'aRad'), col: gl.getAttribLocation(ballProg, 'aCol'),
+      size: gl.getUniformLocation(ballProg, 'uSize'), res: gl.getUniformLocation(ballProg, 'uRes'), opacity: gl.getUniformLocation(ballProg, 'uOpacity'),
+    };
+    const ripArr = new Float32Array(32);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    return {
+      resize() {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        gl.viewport(0, 0, w, h);
+      },
+      draw(f) {
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        if (f.mode === 'none') return;
+        if (f.mode === 'waves') {
+          gl.useProgram(waveProg);
+          gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+          gl.enableVertexAttribArray(wl.p);
+          gl.vertexAttribPointer(wl.p, 2, gl.FLOAT, false, 0, 0);
+          ripArr.fill(0);
+          f.ripples.slice(-8).forEach((r, i) => ripArr.set([r.x, r.y, r.age, r.strength], i * 4));
+          gl.uniform1f(wl.phase, f.phase);
+          gl.uniform3f(wl.ink, f.ink[0], f.ink[1], f.ink[2]);
+          gl.uniform1f(wl.intensity, f.intensity);
+          gl.uniform4fv(wl.ripples, ripArr);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          gl.disableVertexAttribArray(wl.p);
+          return;
+        }
+        if (f.mode === 'balls') {
+          if (f.balls.length === 0) return;
+          const data = new Float32Array(f.balls.length * 6);
+          f.balls.forEach((b, i) => data.set([b.x, b.y, b.r, b.rgb[0], b.rgb[1], b.rgb[2]], i * 6));
+          gl.useProgram(ballProg);
+          gl.bindBuffer(gl.ARRAY_BUFFER, ballBuf);
+          gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+          [[bl.pos, 2, 0], [bl.rad, 1, 8], [bl.col, 3, 12]].forEach(([loc, size, offset]) => {
+            gl.enableVertexAttribArray(loc);
+            gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 24, offset);
+          });
+          gl.uniform1f(bl.size, canvas.width);
+          gl.uniform2f(bl.res, canvas.width, canvas.height);
+          gl.uniform1f(bl.opacity, f.opacity);
+          gl.drawArrays(gl.POINTS, 0, f.balls.length);
+          [bl.pos, bl.rad, bl.col].forEach((loc) => gl.disableVertexAttribArray(loc));
+          return;
+        }
+        throw new Error('bug: unknown background ' + f.mode);
+      },
+      dispose() {
+        gl.deleteProgram(waveProg);
+        gl.deleteProgram(ballProg);
+        gl.deleteBuffer(quad);
+        gl.deleteBuffer(ballBuf);
+      },
+    };
+  }
+
+  // ───────────────────────── IO edge: lifecycle ─────────────────────────
+
+  state = Component.initialState(Date.now(), this.props.seed ?? 7);
+
+  componentDidMount() {
+    this.timer = setInterval(() => {
+      const now = Date.now();
+      this.setState((s) => Component.step(s, now));
+    }, 200);
+    this.startBackdrop();
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.timer);
+    clearTimeout(this.holdTimer);
+    cancelAnimationFrame(this.raf);
+    if (this.fx) this.fx.engine.dispose();
+  }
+
+  /** Start the WebGL backdrop loop; if WebGL can't start, say so in the Display menu rather than hiding it. */
+  startBackdrop() {
+    try {
+      const t0 = performance.now();
+      this.fx = {
+        engine: Component.createBackdropEngine(document.getElementById('cc-bg')),
+        balls: [], seed: this.props.seed ?? 7, wavePhase: 0,
+        ripples: [],
+        lastId: this.state.nextId - 1,
+        lastT: t0,
+      };
+    } catch (err) {
+      this.fx = null;
+      this.setState({ fxError: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+    const loop = (ts) => {
+      this.raf = requestAnimationFrame(loop);
+      this.backdropFrame(ts);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  /** One animation frame: turn newly arrived messages into kicks, advance the physics, draw. */
+  backdropFrame(nowMs) {
+    const C = Component;
+    const s = this.state;
+    const fx = this.fx;
+    const spec = s.myThemes[s.sendAs] ?? s.roomTheme;
+    const t = C.theme(spec);
+    const topic = C.currentTopic(s);
+    const tint = C.topicTint(t.bg, topic.color, topic.opacity);
+    const rgb = (hex) => C.hexToRgb(hex).map((v) => v / 255);
+    const fresh = s.messages.filter((m) => m.id > fx.lastId);
+    const kicks = fresh.flatMap((m) => {
+      const pt = C.newestBubblePoint(s, m.pid, this.props.fadeShare ?? 0.15);
+      return pt === null ? [] : [{ x: pt.left / 100, y: pt.top / 100, strength: m.volume / 3, born: nowMs }];
+    });
+    if (fresh.length > 0) fx.lastId = fresh[fresh.length - 1].id;
+    const dt = Math.min(0.05, Math.max(0, (nowMs - fx.lastT) / 1000));
+    fx.lastT = nowMs;
+    fx.ripples = [...fx.ripples, ...kicks].filter((r) => nowMs - r.born < 3500).slice(-8);
+    fx.engine.resize();
+    if (spec.background === 'waves') {
+      const w = spec.waves;
+      fx.wavePhase += dt * w.speed;
+      const hex = w.color === 'auto' ? tint.ink : w.color === 'accent' ? t.accent : w.color;
+      fx.engine.draw({
+        mode: 'waves', ink: rgb(hex), phase: fx.wavePhase, intensity: w.intensity / 100,
+        ripples: fx.ripples.map((r) => ({ x: r.x, y: r.y, strength: r.strength * w.ripple, age: (nowMs - r.born) / 1000 })),
+      });
+      return;
+    }
+    if (spec.background === 'balls') {
+      const b = spec.balls;
+      const baseR = C.POOL_SIZES[b.size];
+      if (baseR === undefined) throw new Error('bug: unknown ball size ' + b.size);
+      const [sized, seed] = C.fitPool(fx.balls, b.count, fx.seed);
+      fx.seed = seed;
+      fx.balls = C.stepPool(sized, dt, kicks, { baseR, gravity: b.gravity, bounce: b.bounce, push: b.push }, nowMs / 1000);
+      const palette = C.poolPalette(b.palette, topic.color, t, tint.ink).map(rgb);
+      fx.engine.draw({
+        mode: 'balls', opacity: b.opacity / 100,
+        balls: fx.balls.map((x) => ({ x: x.x, y: x.y, r: baseR * x.k, rgb: palette[x.ci % palette.length] })),
+      });
+      return;
+    }
+    fx.engine.draw({ mode: 'none' });
+  }
+
+  /** Focus the new-topic input as soon as the Change topic modal opens. */
+  componentDidUpdate(prevProps, prevState) {
+    if (prevState.topicDraft !== null || this.state.topicDraft === null) return;
+    requestAnimationFrame(() => {
+      const input = document.getElementById('cc-topic-name');
+      if (!input) throw new Error('bug: Change topic modal opened without its #cc-topic-name input');
+      input.focus();
+    });
+  }
+
+  // ───────────────────────── handlers ─────────────────────────
+
+  up = (fn) => this.setState((s) => fn(s));
+  compose = (fn) => this.up((s) => Component.withComposer(s, fn));
+
+  onText = (e) => { const text = e.target.value; this.compose((c) => ({ ...c, draft: { ...c.draft, text } })); };
+  pickEffect = (level) => () => { Component.volume(level); this.compose((c) => Component.setDraft(c, { volume: level })); };
+  pickColor = (hex) => () => this.compose((c) => Component.setDraft(c, { color: hex }));
+  onDuration = (e) => {
+    const ms = Math.round(Number(e.target.value) * 1000);
+    const { minMs, maxMs } = Component.DURATION_RANGE;
+    if (!Number.isFinite(ms) || ms < minMs || ms > maxMs) throw new Error('bug: duration out of range ' + e.target.value);
+    this.compose((c) => Component.setDraft(c, { durationMs: ms }));
+  };
+  toggleOffRecord = () => this.compose((c) => Component.setDraft(c, { record: !c.draft.record }));
+  /** Ticking "Set as default" adopts the current options as defaults; unticking stops later changes sticking. */
+  toggleSticky = () => this.compose((c) => (c.sticky
+    ? { ...c, sticky: false }
+    : { ...c, sticky: true, base: Component.pick(c.draft, Component.STYLE_FIELDS) }));
+  resetDraft = () => this.compose((c) => ({ ...c, draft: { ...c.base, text: c.draft.text } }));
+
+  /** Enter (outside IME composition) acts like clicking the matching button. */
+  static isEnter(e) {
+    return e.key === 'Enter' && !(e.nativeEvent && e.nativeEvent.isComposing);
+  }
+  sendNow = () => { const now = Date.now(); this.up((s) => Component.send(s, now)); };
+
+  /** Press-and-hold on Send opens the per-message options; a normal click sends. */
+  static HOLD_MS = 450;
+  holdTimer = null;
+  heldOpen = false; // the press that opened the options must not also send on release
+  openMessageMenu = () => this.up((s) => ({ menu: s.menu === 'message' ? null : 'message' }));
+  onSendPointerDown = (e) => {
+    if (e.button !== 0) return;
+    this.heldOpen = false;
+    clearTimeout(this.holdTimer);
+    this.setState({ holding: true });
+    this.holdTimer = setTimeout(() => {
+      this.holdTimer = null;
+      this.heldOpen = true;
+      this.setState({ holding: false, menu: 'message' });
+    }, Component.HOLD_MS);
+  };
+  onSendPointerUp = () => {
+    if (this.holdTimer === null) return;
+    clearTimeout(this.holdTimer);
+    this.holdTimer = null;
+    this.setState({ holding: false });
+  };
+  onSendClick = () => {
+    if (this.heldOpen) { this.heldOpen = false; return; }
+    this.sendNow();
+  };
+  onSendContext = (e) => { e.preventDefault(); this.setState({ menu: 'message' }); };
+  onSendKey = (e) => { if (e.key !== 'ArrowUp') return; e.preventDefault(); this.setState({ menu: 'message' }); };
+  onMessageKey = (e) => { if (!Component.isEnter(e)) return; e.preventDefault(); this.sendNow(); };
+
+  selectParticipant = (id) => () => this.setState({ sendAs: id, menu: null });
+  removeParticipant = (id) => () => this.up((s) => Component.removeParticipant(s, id));
+  onNewName = (e) => this.setState({ newName: e.target.value, newNameError: '' });
+  onParticipantFilter = (e) => this.setState({ participantFilter: e.target.value });
+  addNow = () => { const now = Date.now(); this.up((s) => Component.addParticipant(s, s.newName, now)); };
+  onAddClick = () => this.addNow();
+  onNewNameKey = (e) => { if (!Component.isEnter(e)) return; e.preventDefault(); this.addNow(); };
+
+  openTopicModal = () => this.up((s) => ({ menu: null, topicDraft: Component.newTopicDraft(Component.currentTopic(s)) }));
+  closeTopicModal = () => this.setState({ topicDraft: null });
+  updTopicDraft = (patch) => this.up((s) => {
+    if (s.topicDraft === null) throw new Error('bug: editing a topic draft that is not open');
+    return { topicDraft: { ...s.topicDraft, ...patch } };
+  });
+  onTopicName = (e) => this.updTopicDraft({ name: e.target.value, error: '' });
+  onTopicNameKey = (e) => { if (!Component.isEnter(e)) return; e.preventDefault(); this.confirmTopic(); };
+  pickTopicColor = (hex) => () => this.updTopicDraft({ color: hex });
+  onTopicColorInput = (e) => this.updTopicDraft({ color: e.target.value });
+  onTopicOpacity = (e) => this.updTopicDraft({ opacity: Number(e.target.value) / 100 });
+  confirmTopic = () => { const now = Date.now(); this.up((s) => Component.changeTopic(s, now)); };
+  jumpToTopic = (id) => () => {
+    const el = document.getElementById('cc-topic-' + id);
+    if (!el) throw new Error('bug: no history section rendered for topic ' + id);
+    el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    this.setState({ jumpedTopicId: id });
+  };
+
+  toggleRoomRecord = () => this.up((s) => ({ roomRecord: !s.roomRecord }));
+  toggleDrawer = () => this.up((s) => ({ drawerOpen: !s.drawerOpen, menu: null }));
+  toggleRoomUntilNext = () => this.up((s) => ({ roomUntilNext: !s.roomUntilNext }));
+  openMenu = (name) => () => this.up((s) => ({ menu: s.menu === name ? null : name }));
+  openDisplay = this.openMenu('display');
+  openRoom = this.openMenu('room');
+  openTopic = this.openMenu('topic');
+  closeMenu = () => this.setState({ menu: null });
+
+  onFilterText = (e) => this.setState({ filterText: e.target.value });
+  toggleFilterPid = (pid) => () => this.up((s) => ({
+    filterPids: s.filterPids.includes(pid) ? s.filterPids.filter((x) => x !== pid) : [...s.filterPids, pid],
+  }));
+  clearPidFilter = () => this.setState({ filterPids: [] });
+
+  /** "For everyone" edits the room theme; "Just me" edits the acting participant's personal theme. */
+  editTheme = (patch) => this.up((s) => (s.themeScope === 'everyone'
+    ? { roomTheme: { ...s.roomTheme, ...patch } }
+    : { myThemes: { ...s.myThemes, [s.sendAs]: { ...(s.myThemes[s.sendAs] ?? s.roomTheme), ...patch } } }));
+  setScope = (scope) => () => this.setState({ themeScope: scope });
+  resetMyTheme = () => this.up((s) => ({ myThemes: Component.omit(s.myThemes, s.sendAs) }));
+  /** Change one background's settings on whichever theme the Display menu is editing (room or personal). */
+  editBg = (kind, patch) => this.up((s) => {
+    if (!Component.DEFAULT_BG[kind]) throw new Error('bug: no settings for background ' + kind);
+    const cur = s.themeScope === 'everyone' ? s.roomTheme : (s.myThemes[s.sendAs] ?? s.roomTheme);
+    const next = { ...cur, [kind]: { ...cur[kind], ...patch } };
+    return s.themeScope === 'everyone' ? { roomTheme: next } : { myThemes: { ...s.myThemes, [s.sendAs]: next } };
+  });
+  onBgSlider = (kind, d) => (e) => {
+    const v = Number(e.target.value);
+    if (!Number.isFinite(v) || v < d.min || v > d.max) throw new Error(`bug: ${d.key} out of range: ${e.target.value}`);
+    this.editBg(kind, { [d.key]: v });
+  };
+
+  toggleFreq = () => this.up((s) => ({ freq: { ...s.freq, on: !s.freq.on } }));
+  freqField = (key, max) => (e) => {
+    const n = Number(e.target.value);
+    if (!Number.isInteger(n) || n < 1 || n > max) {
+      this.setState({ freqError: `Enter a whole number from 1 to ${max}.` });
+      return;
+    }
+    this.up((s) => ({ freq: { ...s.freq, [key]: n }, freqError: '' }));
+  };
+  onFreqCount = this.freqField('count', 99);
+  onFreqSeconds = this.freqField('seconds', 3600);
+  toggleDominator = () => this.up((s) => ({ dominator: !s.dominator }));
+  toggleSimulate = () => this.up((s) => ({ simulate: !s.simulate, nextBotAt: s.now + 1500 }));
+
+  forcePush = () => this.up((s) => Component.recenter(s));
+  resetSeat = (id) => () => this.up((s) => ({ participants: s.participants.map((p) => (p.id === id ? { ...p, customAngle: null } : p)) }));
+  nudgeSeat = (id, current) => (e) => {
+    const delta = e.key === 'ArrowLeft' ? -6 : e.key === 'ArrowRight' ? 6 : 0;
+    if (delta === 0) return;
+    e.preventDefault();
+    this.up((s) => ({ participants: s.participants.map((p) => (p.id === id ? { ...p, customAngle: Component.normAngle(current + delta) } : p)) }));
+  };
+  startDrag = (id) => (e) => {
+    if (e.button !== 0) return;
+    const ring = e.currentTarget.closest('[data-ring]');
+    if (!ring) throw new Error('bug: seat rendered outside its [data-ring] container');
+    const rect = ring.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    const sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    const move = (ev) => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+      moved = true;
+      const angle = Component.pointerAngle(ev.clientX - cx, ev.clientY - cy);
+      this.up((s) => ({ dragging: id, participants: s.participants.map((p) => (p.id === id ? { ...p, customAngle: angle } : p)) }));
+    };
+    const end = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      this.setState({ dragging: null });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  };
+
+  // ───────────────────────── render values ─────────────────────────
+
+  renderVals() {
+    const C = Component;
+    const s = this.state;
+    const now = s.now;
+    const myTheme = s.myThemes[s.sendAs] ?? null;
+    const t = C.theme(myTheme ?? s.roomTheme);
+    const ringMax = this.props.ringMax ?? 600;
+    const seatBase = this.props.seatSize ?? 56;
+    const fadeShare = this.props.fadeShare ?? 0.15;
+    const byId = Object.fromEntries(s.participants.map((p) => [p.id, p]));
+    const me = C.participantOf(s, s.sendAs);
+    const comp = C.composerOf(s);
+
+    // seats & bubbles
+    const slots = C.evenSlots(s.seatOrder, s.slotOffset);
+    const counts = C.counts(s.messages);
+    const total = s.messages.length;
+    const domId = s.dominator ? C.dominatorId(counts) : null;
+    const bubbles = C.bubbles(s.messages, now, fadeShare);
+    const angleOf = Object.fromEntries(s.participants.map((p) => [p.id, p.customAngle ?? slots[p.id]]));
+    const gaps = C.neighbourGaps(angleOf);
+    const emptyBubble = { present: false, left: '50', top: '50', tr: 'none', enterX: '0', enterY: '0', enterScale: '1', tailLeft: '50%', tailTop: '100%', tailDeg: '90', text: '', color: t.line, ink: t.ink, size: 15, weight: 400, italic: 'normal', textCase: 'none', tracking: '0', opacity: '0', showProgress: false, dashOffset: '0', outline: 'none', offRecord: false };
+
+    const seats = s.participants.map((p) => {
+      const angle = p.customAngle ?? slots[p.id];
+      if (angle === undefined) throw new Error('bug: no slot for participant ' + p.id);
+      const share = total === 0 ? 0 : (counts[p.id] ?? 0) / total;
+      const scale = s.dominator ? Math.min(1.9, 0.8 + share * 2.6) : 1;
+      const size = Math.round(seatBase * scale);
+      const trRot = s.dragging === p.id ? 'transform 0s' : C.TRANSITION;
+      const th = (angle * Math.PI) / 180;
+      // seats on the right (east) half grow their arc clockwise; the rest counter-clockwise
+      const dir = Math.sin(th) > 0.0001 ? -1 : 1;
+      const fan = C.fanLayout(bubbles[p.id] ?? [], C.fanCapacity(gaps[p.id]), now, dir);
+      // arc entries fade in from the leading side (ccw tangent is (-cosθ, -sinθ); flipped for clockwise arcs)
+      const arcX = (-Math.cos(th) * C.FAN.enterPx * dir).toFixed(1), arcY = (-Math.sin(th) * C.FAN.enterPx * dir).toFixed(1);
+      // a lone bubble grows out of the seat: start shifted back toward the seat (outward direction (sinθ, -cosθ))
+      const seatX = (Math.sin(th) * C.FAN.fromSeatPx).toFixed(1), seatY = (-Math.cos(th) * C.FAN.fromSeatPx).toFixed(1);
+      const speaking = fan.some((f) => !f.evicted);
+      const bubbleTr = s.dragging === p.id
+        ? 'opacity .3s ease'
+        : 'left .55s cubic-bezier(.2,.8,.2,1), top .55s cubic-bezier(.2,.8,.2,1), opacity .3s ease';
+      const pool = Array.from({ length: C.FAN.pool }, (_, j) => {
+        const hit = fan.find((f) => f.b.seq % C.FAN.pool === j);
+        if (!hit) return emptyBubble;
+        const b = hit.b;
+        const v = C.volume(b.m.volume);
+        const pt = C.fanPoint(angle, hit.phi);
+        const tail = C.tailFor(angle, pt);
+        return {
+          present: true, left: pt.left.toFixed(2), top: pt.top.toFixed(2), tr: bubbleTr,
+          enterX: hit.solo ? seatX : arcX, enterY: hit.solo ? seatY : arcY, enterScale: hit.solo ? '0.35' : '1',
+          tailLeft: tail.left, tailTop: tail.top, tailDeg: tail.deg,
+          text: b.m.text, color: b.m.color, ink: C.contrastText(b.m.color),
+          size: v.size, weight: v.weight, italic: v.italic ? 'italic' : 'normal', textCase: v.upper ? 'uppercase' : 'none', tracking: v.tracking,
+          opacity: hit.evicted ? '0' : b.opacity.toFixed(2),
+          showProgress: b.progress !== null,
+          // ring drains clockwise: 0 = full ring, 100 = empty (pathLength is 100)
+          dashOffset: b.progress === null ? '0' : (100 - b.progress * 100).toFixed(1),
+          outline: 'none', offRecord: !b.m.onRecord,
+        };
+      });
+      const topHalf = Math.cos((angle * Math.PI) / 180) > 0.01;
+      const custom = p.customAngle !== null;
+      const active = p.id === s.sendAs;
+      return {
+        id: p.id, name: p.name, initials: C.initialsOf(p.name),
+        angle: angle.toFixed(2), neg: (-angle).toFixed(2), trRot,
+        size, spokeTop: Math.round(size / 2 + 6), fontSize: Math.round(19 * Math.max(0.85, scale * 0.95)),
+        color: p.color, ink: C.contrastText(p.color),
+        ringColor: active ? t.accent : t.bg,
+        glow: speaking ? `0 0 0 7px ${C.rgba(p.color, 0.28)}` : 'none',
+        cursor: s.dragging === p.id ? 'grabbing' : 'grab',
+        labelPos: topHalf ? 'bottom: calc(100% + 8px)' : 'top: calc(100% + 8px)',
+        isActive: active, isDom: domId === p.id, custom, muted: C.isMuted(s, p.id),
+        pool,
+        aria: `${p.name}'s seat${custom ? ', moved' : ''}. Drag or use arrow keys to move.`,
+        resetAria: `Reset ${p.name}'s seat`,
+        reset: this.resetSeat(p.id),
+        startDrag: this.startDrag(p.id),
+        onKey: this.nudgeSeat(p.id, angle),
+      };
+    });
+
+    // participants panel
+    const pq = s.participantFilter.trim().toLowerCase();
+    const roster = s.participants.filter((p) => pq === '' || p.name.toLowerCase().includes(pq)).map((p) => {
+      const on = p.id === s.sendAs;
+      const n = counts[p.id] ?? 0;
+      const metaParts = [on ? 'ACTING AS' : '', `${n} MSG${n === 1 ? '' : 'S'}`, p.customAngle !== null ? 'MOVED' : ''].filter((x) => x !== '');
+      return {
+        name: p.name, initials: C.initialsOf(p.name), color: p.color, ink: C.contrastText(p.color),
+        on, bg: on ? t.raised : 'transparent', border: on ? t.accent : 'transparent', ring: on ? t.accent : 'transparent',
+        meta: metaParts.join(' · '), metaColor: on ? t.ink : t.muted, muted: C.isMuted(s, p.id),
+        aria: on ? `Acting as ${p.name}` : `Act as ${p.name}`,
+        removeAria: `Remove ${p.name}`,
+        select: this.selectParticipant(p.id),
+        remove: this.removeParticipant(p.id),
+      };
+    });
+
+    // topic tint (current topic, plus the change-topic draft's live preview)
+    const topic = C.currentTopic(s);
+    const topicUi = C.topicTint(t.bg, topic.color, topic.opacity);
+    const td = s.topicDraft ?? C.newTopicDraft(topic);
+    const tdUi = C.topicTint(t.bg, td.color, td.opacity);
+    const swatch = (hex, current, pick, aria) => {
+      const on = hex.toLowerCase() === current.toLowerCase();
+      return { hex, aria, on, ring: on ? t.ink : 'transparent', pick };
+    };
+
+    // circle size: fit into what the side columns leave
+    const W = C.WIDTHS;
+    const sideWidth = W.participants + (s.drawerOpen ? W.history : W.historyClosed) + W.stagePad;
+
+    // composer
+    const vol = C.volume(comp.draft.volume);
+    const lim = C.rateLimit(s.messages, s.sendAs, s.freq, now);
+    const draftCustom = C.STYLE_FIELDS.some((f) => comp.draft[f] !== comp.base[f]);
+    const roomOff = !s.roomRecord;
+    const cannotSend = lim.blocked || comp.draft.text.trim() === '';
+
+    // log, grouped by topic. Sections go newest-first because the history column renders bottom-up.
+    const q = s.filterText.trim().toLowerCase();
+    const recorded = s.messages.filter((m) => m.onRecord);
+    const filtering = q !== '' || s.filterPids.length > 0;
+    const matches = (m) => (q === '' || m.text.toLowerCase().includes(q)) && (s.filterPids.length === 0 || s.filterPids.includes(m.pid));
+    const pad = (n) => String(n).padStart(2, '0');
+    const clock = (at, withSeconds) => {
+      const d = new Date(at);
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}` + (withSeconds ? `:${pad(d.getSeconds())}` : '');
+    };
+    const entryOf = (m) => {
+      const p = byId[m.pid] ?? { name: m.name, color: '#9AA0A6' };
+      const v = C.volume(m.volume);
+      return {
+        name: p.name, initials: C.initialsOf(p.name), pColor: p.color, pInk: C.contrastText(p.color),
+        time: clock(m.at, true), text: m.text, color: m.color,
+        size: Math.round(12 + (v.size - 13) * 0.5), weight: v.weight, italic: v.italic ? 'italic' : 'normal', textCase: v.upper ? 'uppercase' : 'none',
+      };
+    };
+    const sections = s.topics.slice().reverse().map((tp) => {
+      const all = recorded.filter((m) => m.topicId === tp.id);
+      const shown = all.filter(matches).map(entryOf);
+      const bg = C.mix(t.surface, tp.color, tp.opacity * 0.5);
+      const current = tp.id === s.topicId;
+      return {
+        domId: 'cc-topic-' + tp.id, aria: `Topic: ${tp.name}`,
+        name: tp.name, color: tp.color, bg, ink: C.contrastText(bg),
+        meta: (current ? 'NOW · ' : '') + clock(tp.startedAt, false),
+        entries: shown, empty: shown.length === 0,
+        emptyText: all.length === 0 ? 'Nothing on the record yet.' : 'No comments match the filters.',
+      };
+    });
+    const shownCount = sections.reduce((n, g) => n + g.entries.length, 0);
+    const logBg = C.mix(t.surface, topic.color, topic.opacity * 0.5);
+    const logInk = C.contrastText(logBg);
+    const logLine = C.rgba(logInk === '#FFFFFF' ? '#FFFFFF' : '#141217', 0.2);
+
+    const seg = (on) => ({ bg: on ? t.surface : 'transparent', fg: on ? t.ink : t.muted });
+    const switchVals = (on) => ({ track: on ? t.accent : t.line, knob: on ? t.accentInk : t.muted, justify: on ? 'flex-end' : 'flex-start' });
+    const activeSpec = s.themeScope === 'everyone' ? s.roomTheme : (myTheme ?? s.roomTheme);
+    const menuIs = { display: s.menu === 'display', room: s.menu === 'room', topic: s.menu === 'topic', message: s.menu === 'message' };
+
+    return {
+      t,
+      bubbleRadius: t.shape === 'square' ? '4px' : '18px',
+      // progress ring traces the bubble's own edge, so it shares the bubble's corner radius
+      ringRadius: t.shape === 'square' ? 4 : 18,
+      ringSize: `min(${ringMax}px, calc(100vh - 290px), calc(100vw - ${sideWidth}px))`,
+      seats,
+      bubbleLayer: seats.flatMap((x) => x.pool),
+      roster, onlyOne: s.participants.length <= 1, participantCount: String(s.participants.length),
+      rosterEmpty: roster.length === 0, participantFilter: s.participantFilter,
+      noMatchText: `No one matches “${s.participantFilter.trim()}”.`,
+      onParticipantFilter: this.onParticipantFilter,
+      newName: s.newName, newNameError: s.newNameError, hasNewNameError: s.newNameError !== '',
+      nextColor: C.nextColor(s.participants),
+      topicName: topic.name, topicUi,
+      topicAria: `Topic: ${topic.name}. Change topic`,
+      topicFontSize: topic.name.length <= 20 ? 34 : topic.name.length <= 40 ? 27 : 21,
+      topicModalOpen: s.topicDraft !== null,
+      td: {
+        name: td.name, color: td.color, error: td.error, hasError: td.error !== '',
+        opacityPct: Math.round(td.opacity * 100), opacityLabel: Math.round(td.opacity * 100) + '%',
+      },
+      tdUi,
+      tdSwatches: C.TOPIC_COLORS.map((hex) => swatch(hex, td.color, this.pickTopicColor(hex), 'Topic color ' + hex)),
+      circleCount: `${s.participants.length} IN THE CIRCLE`,
+
+      roomRecord: s.roomRecord, roomOff,
+      rec: s.roomRecord
+        ? { label: 'On the record', bg: C.rgba('#FF7A45', 0.14), border: '#FF7A45', dot: '#FF7A45', dotRing: '#FF7A45', dotClass: 'cc-pulse' }
+        : { label: 'Off the record', bg: 'transparent', border: t.line, dot: 'transparent', dotRing: t.muted, dotClass: '' },
+      menuIs, menuOpen: s.menu !== null,
+      btnBg: { display: menuIs.display ? t.raised : 'transparent', room: menuIs.room ? t.raised : 'transparent', history: s.drawerOpen ? t.raised : 'transparent' },
+      drawerOpen: s.drawerOpen, drawerClosed: !s.drawerOpen,
+      recordCount: String(recorded.length),
+
+      sender: { name: me.name, initials: C.initialsOf(me.name), color: me.color, ink: C.contrastText(me.color) },
+      placeholder: `Say something as ${me.name}…`,
+      draft: comp.draft, volLabel: vol.label,
+      durationSec: comp.draft.durationMs / 1000,
+      durationLabel: `${comp.draft.durationMs / 1000}s`,
+      msgSwatches: C.MSG_COLORS.map((hex) => swatch(hex, comp.draft.color, this.pickColor(hex), 'Message color ' + hex)),
+      effects: Object.entries(C.VOLUMES).map(([lvl, v]) => {
+        const on = Number(lvl) === comp.draft.volume;
+        return {
+          label: v.label, on, pick: this.pickEffect(Number(lvl)),
+          bg: on ? t.surface : 'transparent', fg: on ? t.ink : t.muted,
+          size: Math.min(20, v.size), weight: v.weight, italic: v.italic ? 'italic' : 'normal', textCase: v.upper ? 'uppercase' : 'none',
+        };
+      }),
+      draftOffRecord: !comp.draft.record, sticky: comp.sticky, draftCustom,
+      offRecordHint: roomOff ? 'The whole room is already off the record.' : comp.draft.record ? 'Will be saved to the history.' : 'Won’t be saved to the history.',
+      styleAria: `Message options: ${vol.label}, ${comp.draft.durationMs / 1000}s` + (comp.draft.record ? '' : ', off the record'),
+      holding: s.holding, rowZ: menuIs.message ? '25' : 'auto', sendOpacity: cannotSend ? '0.55' : '1',
+      roomUntilNext: s.roomUntilNext,
+      preview: { color: comp.draft.color, ink: C.contrastText(comp.draft.color), size: Math.min(22, vol.size), railSize: Math.min(18, vol.size), weight: vol.weight, italic: vol.italic ? 'italic' : 'normal', textCase: vol.upper ? 'uppercase' : 'none' },
+      freqUsage: s.freq.on ? `${Math.min(lim.used, s.freq.count)}/${s.freq.count} · ${s.freq.seconds}s` : '',
+      sendDisabled: cannotSend,
+      sendLabel: lim.blocked ? `Wait ${lim.waitSec}s` : 'Send',
+
+      filterText: s.filterText,
+      noPidFilter: s.filterPids.length === 0,
+      allChipBg: s.filterPids.length === 0 ? t.ink : 'transparent', allChipInk: s.filterPids.length === 0 ? t.bg : logInk,
+      pidChips: s.participants.map((p) => {
+        const on = s.filterPids.includes(p.id);
+        return {
+          name: p.name, initials: C.initialsOf(p.name), color: p.color, ink: C.contrastText(p.color),
+          on, bg: on ? t.ink : 'transparent', fg: on ? t.bg : logInk, border: on ? t.ink : logLine,
+          toggle: this.toggleFilterPid(p.id),
+        };
+      }),
+      log: {
+        bg: logBg, ink: logInk, line: logLine, sections,
+        countLabel: filtering ? `${shownCount} of ${recorded.length}` : `${recorded.length}`,
+      },
+      topicPills: s.topics.map((tp) => {
+        const on = tp.id === (s.jumpedTopicId ?? s.topicId);
+        const bg = C.mix(t.surface, tp.color, 0.3);
+        return { name: tp.name, color: tp.color, on, bg, fg: C.contrastText(bg), border: on ? logInk : 'transparent', title: `Jump to “${tp.name}”`, jump: this.jumpToTopic(tp.id) };
+      }),
+
+      scopes: [['everyone', 'For everyone'], ['me', `Just ${me.name}`]].map(([id, label]) => ({ label, on: s.themeScope === id, pick: this.setScope(id), ...seg(s.themeScope === id) })),
+      scopeHint: s.themeScope === 'everyone' ? 'Changes restyle the room for every participant.' : `Changes only affect what ${me.name} sees.`,
+      presets: Object.entries(C.PRESETS).map(([id, p]) => ({
+        label: p.label, bg: p.bg, ink: p.ink, line: p.line, on: activeSpec.preset === id,
+        ring: activeSpec.preset === id ? t.accent : t.line, pick: () => this.editTheme({ preset: id }),
+      })),
+      accents: C.ACCENTS.map((hex) => swatch(hex, activeSpec.accent, () => this.editTheme({ accent: hex }), 'Accent ' + hex)),
+      shapes: [['round', 'Round'], ['square', 'Square']].map(([id, label]) => ({ label, on: activeSpec.shape === id, pick: () => this.editTheme({ shape: id }), ...seg(activeSpec.shape === id) })),
+      backgrounds: C.BACKGROUNDS.map(([id, label]) => ({
+        label, on: activeSpec.background === id, pick: () => this.editTheme({ background: id }),
+        disabled: s.fxError !== '' && id !== 'none', ...seg(activeSpec.background === id),
+      })),
+      fxError: s.fxError, hasFxError: s.fxError !== '',
+      bgIsWaves: activeSpec.background === 'waves',
+      bgHasProps: activeSpec.background !== 'none' && s.fxError === '',
+      bgSliders: activeSpec.background === 'none' ? [] : C.BG_SLIDERS[activeSpec.background].map((d) => {
+        const v = activeSpec[activeSpec.background][d.key];
+        return {
+          id: 'cc-bg-' + d.key, label: d.label, min: d.min, max: d.max, step: d.step, value: v,
+          display: (d.unit === '×' ? v.toFixed(1) : String(v)) + d.unit, onChange: this.onBgSlider(activeSpec.background, d),
+        };
+      }),
+      bgChoices: activeSpec.background !== 'balls' ? [] : [
+        ['size', 'SIZE', 'Ball size', [['s', 'Small'], ['m', 'Medium'], ['l', 'Large']]],
+        ['palette', 'COLOURS', 'Ball colours', [['candy', 'Candy'], ['topic', 'Topic'], ['mono', 'Mono']]],
+      ].map(([key, label, aria, opts]) => ({
+        label, aria,
+        options: opts.map(([id, name]) => ({ label: name, on: activeSpec.balls[key] === id, pick: () => this.editBg('balls', { [key]: id }), ...seg(activeSpec.balls[key] === id) })),
+      })),
+      bgColors: C.WAVE_COLORS.map(([id, name]) => {
+        const hex = id === 'auto' ? topicUi.ink : id === 'accent' ? t.accent : id;
+        const on = activeSpec.waves.color === id;
+        return { aria: 'Wave colour: ' + name, hex, on, ring: on ? t.accent : t.line, mark: id === 'auto' ? 'A' : '', markInk: C.contrastText(hex), pick: () => this.editBg('waves', { color: id }) };
+      }),
+      hasMyTheme: myTheme !== null,
+      myThemeNote: `${me.name} sees their own theme. Others see the room theme.`,
+
+      freq: s.freq, freqOff: !s.freq.on, freqError: s.freqError, hasFreqError: s.freqError !== '',
+      dominator: s.dominator, simulate: s.simulate,
+      sw: { freq: switchVals(s.freq.on), dom: switchVals(s.dominator), sim: switchVals(s.simulate), off: switchVals(!comp.draft.record), next: switchVals(s.roomUntilNext) },
+
+      // handlers
+      toggleRoomRecord: this.toggleRoomRecord, toggleDrawer: this.toggleDrawer, toggleRoomUntilNext: this.toggleRoomUntilNext,
+      openDisplay: this.openDisplay, openRoom: this.openRoom, closeMenu: this.closeMenu,
+      openTopicModal: this.openTopicModal, closeTopicModal: this.closeTopicModal, confirmTopic: this.confirmTopic,
+      onTopicName: this.onTopicName, onTopicNameKey: this.onTopicNameKey,
+      forcePush: this.forcePush,
+      // Recenter only appears once someone has dragged their seat off its even slot
+      anyMoved: s.participants.some((p) => p.customAngle !== null),
+      onNewName: this.onNewName, onAddClick: this.onAddClick, onNewNameKey: this.onNewNameKey,
+      onTopicColorInput: this.onTopicColorInput, onTopicOpacity: this.onTopicOpacity,
+      onText: this.onText, onDuration: this.onDuration, toggleOffRecord: this.toggleOffRecord, toggleSticky: this.toggleSticky, resetDraft: this.resetDraft,
+      openMessageMenu: this.openMessageMenu, onSendClick: this.onSendClick, onSendPointerDown: this.onSendPointerDown,
+      onSendPointerUp: this.onSendPointerUp, onSendContext: this.onSendContext, onSendKey: this.onSendKey, onMessageKey: this.onMessageKey,
+      onFilterText: this.onFilterText, clearPidFilter: this.clearPidFilter,
+      resetMyTheme: this.resetMyTheme,
+      toggleFreq: this.toggleFreq, onFreqCount: this.onFreqCount, onFreqSeconds: this.onFreqSeconds,
+      toggleDominator: this.toggleDominator, toggleSimulate: this.toggleSimulate,
+    };
+  }
+}
+</script>
+</body>
+</html>
