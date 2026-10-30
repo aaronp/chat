@@ -378,7 +378,7 @@ a{color:#F4A259}a:hover{color:#FFC48F}
 
       <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .1em; color: {{t.muted}}">THEME</div>
       <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
-        <sc-for list="{{presets}}" as="p" hint-placeholder-count="3">
+        <sc-for list="{{presets}}" as="p" hint-placeholder-count="7">
           <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 12px; border: 2px solid {{p.ring}}; background: transparent; text-align: left">
             <span style="display: block; height: 44px; border-radius: 8px; background: {{p.bg}}; border: 1px solid {{p.line}}; position: relative">
               <span style="position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid {{p.ink}}"></span>
@@ -572,6 +572,11 @@ class Component extends DCLogic {
     campfire: { label: 'Campfire', bg: '#121016', surface: '#1B1820', raised: '#25212B', ink: '#F3EFE9', muted: '#A9A2B3', line: '#332D3B', shadow: '0 14px 40px rgba(0,0,0,.45)' },
     daylight: { label: 'Daylight', bg: '#F2F0EB', surface: '#FFFFFF', raised: '#ECE9E2', ink: '#1B1A1F', muted: '#5D5965', line: '#D9D4CA', shadow: '0 14px 40px rgba(40,30,20,.14)' },
     ink:      { label: 'Ink',      bg: '#050505', surface: '#0F0F0F', raised: '#1B1B1B', ink: '#FFFFFF', muted: '#B5B5B5', line: '#323232', shadow: '0 14px 40px rgba(0,0,0,.6)' },
+    // Colours below match the ADR project's themes (src/ui/styles.css).
+    paper:     { label: 'Graph paper', bg: '#F2F4F3', surface: '#FFFFFF', raised: '#ECEFED', ink: '#15181C', muted: '#4D555C', line: '#D9DDDB', shadow: '0 14px 40px rgba(20,25,30,.14)' },
+    night:     { label: 'Night shift', bg: '#111316', surface: '#1A1D21', raised: '#20242A', ink: '#ECEFED', muted: '#A9B0B6', line: '#2E333A', shadow: '0 14px 40px rgba(0,0,0,.45)' },
+    blueprint: { label: 'Blueprint',   bg: '#0F2747', surface: '#133059', raised: '#17386A', ink: '#F1F6FF', muted: '#B4C8E8', line: '#2A4F84', shadow: '0 14px 40px rgba(0,0,0,.45)' },
+    warm:      { label: 'Warm ledger', bg: '#F5F0E6', surface: '#FFFDF8', raised: '#EDE5D6', ink: '#231C14', muted: '#5C5044', line: '#DDD2BE', shadow: '0 14px 40px rgba(40,30,20,.14)' },
   };
   static ACCENTS = ['#F4A259', '#6EA8FE', '#D4FF3A', '#C792EA', '#4CC9A6'];
   static TOPIC_COLORS = ['#6EA8FE', '#4CC9A6', '#F4A259', '#C792EA', '#F27A9B', '#9AA0A6'];
@@ -1091,7 +1096,7 @@ class Component extends DCLogic {
 
   /**
    * The address bar as state: which menu is open, whether the history drawer is shown, and the room theme.
-   *   ?menu=display|room|topic|message   ?history=closed   ?theme=campfire|daylight|ink
+   *   ?menu=display|room|topic|message   ?history=closed   ?theme=campfire|daylight|ink|paper|night|blueprint|warm
    * Other params are left as they are. Unknown values are ignored; a missing ?theme keeps the current one.
    */
   static MENUS = ['display', 'room', 'topic', 'message'];

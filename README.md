@@ -22,8 +22,9 @@ scripts over file://). `make test` checks the address-bar helpers.
 
 The address bar carries the UI state, so links can open a given view:
 `?menu=display|room|topic|message`, `?history=closed`,
-`?theme=campfire|daylight|ink`. Opening a menu is a history entry (Back
-closes it); the theme and drawer replace the current entry.
+`?theme=campfire|daylight|ink|paper|night|blueprint|warm`. Opening a menu
+is a history entry (Back closes it); the theme and drawer replace the
+current entry.
 
 ## Publishing
 
